@@ -1,0 +1,1 @@
+docker run -d -p 5000:5000 --name tensorflwo-dirtyword-params-transformer 192.168.2.150/zrar/tensorflwo-dirtyword-params-transformer:1.0.0
