@@ -27,4 +27,11 @@ public class RemoteServiceImpl implements RemoteService {
                 + " root@" + customConfig.getBridgeIp() + ":" + to;
         return command;
     }
+
+    @Override
+    public String createScpRCommand(String from, String to) {
+        String command = "scp -r " + from
+                + " root@" + customConfig.getBridgeIp() + ":" + to;
+        return command;
+    }
 }

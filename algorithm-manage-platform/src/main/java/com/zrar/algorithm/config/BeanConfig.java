@@ -3,6 +3,8 @@ package com.zrar.algorithm.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,5 +43,10 @@ public class BeanConfig {
     @Bean
     public Runtime runtime() {
         return Runtime.getRuntime();
+    }
+
+    @Bean
+    public CloseableHttpClient httpClient() {
+        return HttpClients.createDefault();
     }
 }

@@ -13,9 +13,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Jingfeng Zhou
@@ -41,26 +43,39 @@ public class MLeapServiceImpl implements MLeapService {
 
     @Override
     public String online(String modelName) {
-        // 获取模型上线的URL
-        String url = getOnlineUrl(modelName);
-        // 模型的位置
-        ObjectNode objectNode = objectMapper.createObjectNode();
-        objectNode.put("path", fileService.getModelInnerPath(modelName));
-        String requestBody = null;
-        try {
-            requestBody = objectMapper.writeValueAsString(objectNode);
-        } catch (JsonProcessingException e) {
-            log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        // 模型上线的时候可能没有这么快，所以我尝试10次，每次间隔5秒
+        for (int i = 0; i < 10; i++) {
+            try {
+                // 获取模型上线的URL
+                String url = getOnlineUrl(modelName);
+                // 模型的位置
+                ObjectNode objectNode = objectMapper.createObjectNode();
+                objectNode.put("path", fileService.getModelInnerPath(modelName));
+                String requestBody = null;
+                try {
+                    requestBody = objectMapper.writeValueAsString(objectNode);
+                } catch (JsonProcessingException e) {
+                    log.error("e = {}", e);
+                    throw new AlgorithmException(ResultEnum.JSON_ERROR);
+                }
+                // 构造PUT请求，上线模型
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
+                ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
+                // 返回上线的结果
+                String responseBody = response.getBody();
+                return responseBody;
+            } catch (Exception e) {
+                log.error("e = {}", e);
+                try {
+                    TimeUnit.SECONDS.sleep(5);
+                } catch (InterruptedException e1) {
+                    log.error("e1 = {}", e1);
+                }
+            }
         }
-        // 构造PUT请求，上线模型
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
-        // 返回上线的结果
-        String responseBody = response.getBody();
-        return responseBody;
+        throw new AlgorithmException(ResultEnum.MODEL_ONLINE_FAILED);
     }
 
     @Override
@@ -108,7 +123,7 @@ public class MLeapServiceImpl implements MLeapService {
 
     private String getUrl(String modelName, String type) {
         // 构造mleap-bridge能够接收的地址
-        String url = "http://" + customConfig.getBridgeIp() + ":" + customConfig.getBridgePort() + "/" + modelName + "/" + type;
+        String url = "http://" + customConfig.getBridgeIp() + ":" + customConfig.getBridgePort() + "/mleap/" + modelName + "/" + type;
         return url;
     }
 }

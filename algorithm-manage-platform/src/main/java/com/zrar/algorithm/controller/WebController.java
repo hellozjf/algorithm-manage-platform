@@ -5,6 +5,7 @@ import com.zrar.algorithm.constant.ModelParamEnum;
 import com.zrar.algorithm.constant.ModelTypeEnum;
 import com.zrar.algorithm.constant.ResultEnum;
 import com.zrar.algorithm.domain.ModelEntity;
+import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.form.ModelForm;
 import com.zrar.algorithm.repository.ModelRepository;
 import com.zrar.algorithm.service.*;
@@ -110,32 +111,37 @@ public class WebController {
         if (active.equalsIgnoreCase("dev")) {
             try {
                 String cmd = remoteService.createScpCommand(fileService.getModelOutterPath(modelForm.getName()),
-                        "/opt/docker/mleap/models");
+                        "/opt/docker/algorithm-manage-platform/models");
                 Process process = runtime.exec(cmd);
                 log.debug("{} return {}", cmd, process.waitFor());
             } catch (Exception e) {
                 log.error("e = {}", e);
-                System.exit(-1);
+                throw new AlgorithmException(ResultEnum.CMD_ERROR);
             }
         }
 
         // 如果是tensorflow模型，还需要将模型zip进行解压
         if (modelForm.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
             try {
+                // 进入宿主机模型目录，unzip模型
                 if (active.equalsIgnoreCase("dev")) {
-                    // 开发环境，要登录远程服务器，进入宿主机模型目录，unzip模型
-                    String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; unzip " + modelForm.getName() + ".zip");
+                    String cmd = "unzip -o " + customConfig.getModelOuterPath() + "/" + modelForm.getName() + ".zip -d " + customConfig.getModelOuterPath() + "/" + modelForm.getName();
                     Process process = runtime.exec(cmd);
                     log.debug("{} return {}", cmd, process.waitFor());
-                } else {
-                    // 生产环境，进入宿主机模型目录，unzip模型
-                    String cmd = "cd " + customConfig.getModelOuterPath() + "; unzip " + modelForm.getName() + ".zip";
+                } else if (active.equalsIgnoreCase("prod")) {
+                    String cmd = "cd " + customConfig.getModelOuterPath() + "; unzip -o " + modelForm.getName() + ".zip -d " + modelForm.getName();
+                    Process process = runtime.exec(cmd);
+                    log.debug("{} return {}", cmd, process.waitFor());
+                }
+                if (active.equalsIgnoreCase("dev")) {
+                    // 开发环境，还要进入远程服务器unzip
+                    String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models/; unzip -o " + modelForm.getName() + ".zip -d " + modelForm.getName());
                     Process process = runtime.exec(cmd);
                     log.debug("{} return {}", cmd, process.waitFor());
                 }
             } catch (Exception e) {
                 log.error("e = {}", e);
-                System.exit(-1);
+                throw new AlgorithmException(ResultEnum.CMD_ERROR);
             }
         }
 
@@ -147,9 +153,15 @@ public class WebController {
         // 通过数据库记录生成新的docker-compose.yml文件
         try {
             dockerService.generateDockerComposeYml();
-        } catch (IOException e) {
+            if (active.equalsIgnoreCase("dev")) {
+                // 开发版本还要拷贝docker-compose.yml文件
+                String cmd = remoteService.createScpCommand(customConfig.getDockerComposePath(), "/opt/docker/algorithm-manage-platform");
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            }
+        } catch (IOException | InterruptedException e) {
             log.error("e = {}", e);
-            System.exit(-1);
+            throw new AlgorithmException(ResultEnum.CMD_ERROR);
         }
 
         // 让模型对应的docker容器先跑起来
@@ -157,18 +169,20 @@ public class WebController {
             dockerService.createDocker(modelForm.getName());
         } catch (Exception e) {
             log.error("e = {}", e);
-            System.exit(-1);
+            throw new AlgorithmException(ResultEnum.CMD_ERROR);
         }
 
         // mleap还要额外让模型上线
-        try {
-            String result = mLeapService.online(modelForm.getName());
-        } catch (Exception e) {
-            log.error("e = {}", e);
-            if (file.exists()) {
-                file.delete();
+        if (modelForm.getType() == ModelTypeEnum.MLEAP.getCode()) {
+            try {
+                String result = mLeapService.online(modelForm.getName());
+            } catch (Exception e) {
+                log.error("e = {}", e);
+                if (file.exists()) {
+                    file.delete();
+                }
+                return ResultUtils.error(ResultEnum.MODEL_ONLINE_FAILED.getCode(), e.getMessage());
             }
-            return ResultUtils.error(ResultEnum.MODEL_ONLINE_FAILED.getCode(), e.getMessage());
         }
 
         return ResultUtils.success(modelEntity);

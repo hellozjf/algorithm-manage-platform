@@ -24,6 +24,8 @@ public class DockerComposeDTO {
         @JsonInclude(JsonInclude.Include.NON_NULL)
         private List<String> volumes;
         private List<String> networks;
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private List<String> environment;
     }
 
     @Data

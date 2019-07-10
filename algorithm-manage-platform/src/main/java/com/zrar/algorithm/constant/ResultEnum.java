@@ -25,6 +25,9 @@ public enum ResultEnum {
     UNKNOWN_ERROR(14, "未知错误"),
     DEL_MODEL_ERROR(15, "删除模型失败"),
     ADD_MODEL_ERROR(16, "添加模型失败"),
+    GET_PARAMS_ERROR(17, "获取参数失败"),
+    UNKNOWN_MODEL_TYPE(18, "未知的模型类型"),
+    CMD_ERROR(19, "命令错误"),
     ;
 
     Integer code;

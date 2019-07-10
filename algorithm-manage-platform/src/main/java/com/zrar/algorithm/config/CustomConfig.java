@@ -27,7 +27,7 @@ public class CustomConfig {
     /**
      * algorithm-bridge的端口
      */
-    private String bridgePort;
+    private Integer bridgePort;
 
     /**
      * 模型放置在宿主机里面的路径地址

@@ -215,9 +215,10 @@ def convert_single_example2(ex_index, example, label_list, max_seq_length, token
     }
 
 
-@app.route('/getParams')
+@app.route('/getParams', methods=['POST'])
 def getParams():
-    sentence = request.args.get('sentence')
+    sentence = request.form['sentence']
+    print('sentence:', sentence)
     example = {
         'label': '0',
         'text_a': sentence

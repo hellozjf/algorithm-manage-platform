@@ -11,7 +11,7 @@
 
     <groupId>com.hellozjf.learn.company.zrar</groupId>
     <artifactId>algorithm-bridge</artifactId>
-    <name>mleap-bridge</name>
+    <name>algorithm-bridge</name>
 
     <properties>
         <java.version>1.8</java.version>

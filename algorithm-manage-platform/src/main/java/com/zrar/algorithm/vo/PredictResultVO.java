@@ -1,5 +1,6 @@
 package com.zrar.algorithm.vo;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 /**
@@ -11,12 +12,12 @@ public class PredictResultVO {
     /**
      * 原始字符串
      */
-    private String raw;
+    private String sentence;
 
     /**
      * 转换之后的参数
      */
-    private String param;
+    private JsonNode params;
 
     /**
      * 预测的分类结果

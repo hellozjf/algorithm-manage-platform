@@ -70,65 +70,61 @@ public class DockerServiceImpl implements DockerService {
 
         isStarted = false;
 
-        // 一直重启docker相关服务，直到所有docker服务都正常启动为止
-        while (true) {
-
-            try {
-                // 创建相关文件夹
-                File folder = new File(customConfig.getModelOuterPath());
-                if (!folder.exists()) {
-                    folder.mkdirs();
-                }
-                if (active.equalsIgnoreCase("dev")) {
-                    String cmd = remoteService.createExecCommand("mkdir -p /opt/docker/algorithm_manage_platform/models");
-                    Process process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                }
-
-                // 删除原有的docker-compose.yml创建的容器
-                if (active.equalsIgnoreCase("prod")) {
-                    String cmd = "docker-compose down";
-                    Process process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                } else if (active.equalsIgnoreCase("dev")) {
-                    String cmd = remoteService.createExecCommand("cd /opt/docker/mleap; docker-compose down");
-                    Process process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                }
-
-                // 从数据库中生成新的docker-compose.yml文件
-                generateDockerComposeYml();
-                copyDockerComposeYml();
-
-                // 用新的docker-compose.yml文件创建容器
-                if (active.equalsIgnoreCase("prod")) {
-                    String cmd = "docker-compose up -d";
-                    Process process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                } else if (active.equalsIgnoreCase("dev")) {
-                    String cmd = remoteService.createExecCommand("cd /opt/docker/mleap; docker-compose up -d");
-                    Process process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                }
-
-                // 将模型都加载到容器中
-                if (active.equalsIgnoreCase("prod")) {
-                    reloadModels();
-                } else if (active.equalsIgnoreCase("dev")) {
-                    // 先把远端的模型全部删了
-                    String cmd = remoteService.createExecCommand("cd /opt/docker/mleap/models; rm -rf *");
-                    Process process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                    // 再把本地的模型全部拷贝到远端
-                    cmd = remoteService.createScpCommand(customConfig.getModelOuterPath() + "/*", "/opt/docker/mleap/models/");
-                    process = runtime.exec(cmd);
-                    log.debug("{} return {}", cmd, process.waitFor());
-                    reloadModels();
-                }
-                break;
-            } catch (Exception e) {
-                log.error("e = {}", e);
+        try {
+            // 创建相关文件夹
+            File folder = new File(customConfig.getModelOuterPath());
+            if (!folder.exists()) {
+                folder.mkdirs();
             }
+            if (active.equalsIgnoreCase("dev")) {
+                String cmd = remoteService.createExecCommand("mkdir -p /opt/docker/algorithm-manage-platform/models");
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            }
+
+            // 删除原有的docker-compose.yml创建的容器
+            if (active.equalsIgnoreCase("prod")) {
+                String cmd = "docker-compose down";
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            } else if (active.equalsIgnoreCase("dev")) {
+                String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; docker-compose down");
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            }
+
+            // 如果是dev版本，将模型拷贝到远程服务器
+            if (active.equalsIgnoreCase("dev")) {
+                // 先把远端的模型全部删了
+                String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models; rm -rf *");
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+                // 再把本地的模型全部拷贝到远端
+                cmd = remoteService.createScpRCommand(customConfig.getModelOuterPath() + "/*", "/opt/docker/algorithm-manage-platform/models/");
+                process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            }
+
+            // 从数据库中生成新的docker-compose.yml文件
+            generateDockerComposeYml();
+            copyDockerComposeYml();
+
+            // 用新的docker-compose.yml文件创建容器
+            if (active.equalsIgnoreCase("prod")) {
+                String cmd = "docker-compose up -d";
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            } else if (active.equalsIgnoreCase("dev")) {
+                String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; docker-compose up -d");
+                Process process = runtime.exec(cmd);
+                log.debug("{} return {}", cmd, process.waitFor());
+            }
+
+            // 重新加载模型
+            reloadModels();
+
+        } catch (Exception e) {
+            log.error("e = {}", e);
         }
 
         isStarted = true;
@@ -137,7 +133,7 @@ public class DockerServiceImpl implements DockerService {
     @Override
     public void copyDockerComposeYml() throws Exception {
         if (active.equalsIgnoreCase("dev")) {
-            String cmd = remoteService.createScpCommand(customConfig.getDockerComposePath(), "/opt/docker/mleap");
+            String cmd = remoteService.createScpCommand(customConfig.getDockerComposePath(), "/opt/docker/algorithm-manage-platform");
             Process process = runtime.exec(cmd);
             log.debug("{} return {}", cmd, process.waitFor());
         }
@@ -147,7 +143,7 @@ public class DockerServiceImpl implements DockerService {
     public void createDocker(String modelName) throws Exception {
         String cmd = "docker-compose up -d " + modelName;
         if (active.equalsIgnoreCase("dev")) {
-            cmd = remoteService.createExecCommand("cd /opt/docker/mleap; " + cmd);
+            cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; " + cmd);
             Process process = runtime.exec(cmd);
             log.debug("{} return {}", cmd, process.waitFor());
         } else {
@@ -160,7 +156,7 @@ public class DockerServiceImpl implements DockerService {
     public void deleteDocker(String modelName) throws Exception {
         String cmd = "docker-compose rm -sf " + modelName;
         if (active.equalsIgnoreCase("dev")) {
-            cmd = remoteService.createExecCommand("cd /opt/docker/mleap; " + cmd);
+            cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; " + cmd);
             Process process = runtime.exec(cmd);
             log.debug("{} return {}", cmd, process.waitFor());
         } else if (active.equalsIgnoreCase("prod")) {
@@ -193,7 +189,8 @@ public class DockerServiceImpl implements DockerService {
                 DockerComposeDTO.Service service = new DockerComposeDTO.Service();
                 service.setImage(customConfig.getHarborIp() + "/zrar/tensorflow/serving:latest");
                 service.setNetworks(Arrays.asList("algorithm-bridge"));
-                service.setVolumes(Arrays.asList("./models:/models"));
+                service.setVolumes(Arrays.asList("./models/" + modelEntity.getName() + ":/models/" + modelEntity.getName()));
+                service.setEnvironment(Arrays.asList("MODEL_NAME=" + modelEntity.getName()));
                 services.set(modelEntity.getName(), yamlObjectMapper.valueToTree(service));
             }
         }
@@ -244,27 +241,14 @@ public class DockerServiceImpl implements DockerService {
         List<ModelEntity> modelEntityList = modelRepository.findAll();
 
         for (ModelEntity modelEntity : modelEntityList) {
-            while (true) {
-                // 这里只有MLeap的模型需要恢复，tensorflow的模型自己就会恢复
-                if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
-                    try {
-                        String modelName = modelEntity.getName();
-                        String modelPath = fileService.getModelOutterPath(modelName);
-                        File modelFile = new File(modelPath);
-                        if (modelFile.exists()) {
-                            log.debug("开始恢复{}", modelName);
-                            mLeapService.online(modelName);
-                        }
-                        break;
-                    } catch (Exception e) {
-                        log.error("e = {}", e.getMessage());
-                        try {
-                            log.debug("捕获到异常，说明docker服务还没有启动好，等待5秒后再次恢复模型");
-                            TimeUnit.SECONDS.sleep(5);
-                        } catch (InterruptedException e1) {
-                            log.error("e1 = {}", e1);
-                        }
-                    }
+            // 这里只有MLeap的模型需要恢复，tensorflow的模型自己就会恢复
+            if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
+                String modelName = modelEntity.getName();
+                String modelPath = fileService.getModelOutterPath(modelName);
+                File modelFile = new File(modelPath);
+                if (modelFile.exists()) {
+                    log.debug("开始恢复{}", modelName);
+                    mLeapService.online(modelName);
                 }
             }
         }
