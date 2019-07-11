@@ -17,16 +17,14 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.Valid;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -150,6 +148,13 @@ public class WebController {
         // 先把记录写到数据库中
         ModelEntity modelEntity = new ModelEntity();
         BeanUtils.copyProperties(modelForm, modelEntity);
+        // 计算一下md5
+        try (InputStream inputStream = new FileInputStream(file)) {
+            modelEntity.setMd5(DigestUtils.md5DigestAsHex(inputStream));
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            return ResultUtils.error(ResultEnum.FILE_IS_WRONG.getCode(), e.getMessage());
+        }
         modelEntity = modelRepository.save(modelEntity);
 
         // 通过数据库记录生成新的docker-compose.yml文件
