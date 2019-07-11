@@ -1,13 +1,11 @@
 package com.zrar.algorithm.form;
 
-import com.zrar.algorithm.domain.BaseEntity;
+import com.zrar.algorithm.validator.ModelNameConstraint;
 import com.zrar.algorithm.validator.ModelParamConstraint;
 import com.zrar.algorithm.validator.ModelTypeConstraint;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
 import javax.validation.constraints.NotBlank;
 
 /**
@@ -25,6 +23,7 @@ public class ModelForm {
      * 模型的名称也是后续algorithm-bridge需要的模型的路径
      */
     @NotBlank(message = "模型名称不能为空")
+    @ModelNameConstraint(message = "模型名已存在")
     private String name;
 
     /**

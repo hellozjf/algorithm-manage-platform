@@ -11,9 +11,6 @@ import com.zrar.algorithm.domain.ModelEntity;
 import com.zrar.algorithm.dto.Indexes;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.ModelRepository;
-import com.zrar.algorithm.service.FileService;
-import com.zrar.algorithm.service.MLeapService;
-import com.zrar.algorithm.service.RemoteService;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
 import com.zrar.algorithm.vo.PredictResultVO;
@@ -24,7 +21,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
@@ -56,19 +52,7 @@ public class ModelController {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private MLeapService mLeapService;
-
-    @Autowired
-    private ModelRepository mLeapRepository;
-
-    @Autowired
-    private FileService fileService;
-
-    @Autowired
     private CustomConfig customConfig;
-
-    @Autowired
-    private RemoteService remoteService;
 
     @Autowired
     private ModelRepository modelRepository;
@@ -77,15 +61,10 @@ public class ModelController {
     private String active;
 
     @Autowired
-    private Runtime runtime;
-
-    @Autowired
     private CloseableHttpClient httpClient;
 
     /**
-     * 预测某句话的分类，以及这个分类的可信度
-     * predict实际上会发送
-     * {"schema":{"fields":[{"name":"word","type":"string"}]},"rows":[["增值税 的 税率 是 多少"]]}
+     * 用模型预测sentence，预测分为两个步骤，第一步获取参数，第二步使用参数预测结果
      *
      * @param modelName
      * @param sentence
@@ -94,14 +73,20 @@ public class ModelController {
     @PostMapping("/{modelName}/predict")
     public ResultVO predict(@PathVariable("modelName") String modelName,
                             @RequestBody String sentence) {
-        ModelEntity modelEntity = modelRepository.findByName(modelName);
+        ModelEntity modelEntity = modelRepository.findByName(modelName).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        long beforeGetParams = 0L;
+        long afterGetParams = 0L;
+        long beforeDoPredict = 0L;
+        long afterDoPredict = 0L;
         if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
             // mleap的模型
 
             // 首先获取参数
             String params = null;
             try {
+                beforeGetParams = System.currentTimeMillis();
                 params = getParams(sentence, modelEntity.getType(), modelEntity.getParam());
+                afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
                 ResultUtils.error(ResultEnum.GET_PARAMS_ERROR.getCode(), e.getMessage());
@@ -113,21 +98,27 @@ public class ModelController {
             // 然后预测结果
             String ps = null;
             try {
+                beforeDoPredict = System.currentTimeMillis();
                 ps = doPredict(params, "/mleap/" + modelName + "/transform");
+                afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
                 throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), e.getMessage());
             }
-            return ResultUtils.success(getMLeapPredictResultVO(ps, sentence, params));
+            return ResultUtils.success(getMLeapPredictResultVO(ps, sentence, params,
+                    afterGetParams - beforeGetParams,
+                    afterDoPredict - beforeDoPredict));
 
         } else if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode() &&
-                    modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
+                modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
             // tensorflow的模型
 
             // 首先获取参数
             String params = null;
             try {
+                beforeGetParams = System.currentTimeMillis();
                 params = getParams(sentence, modelEntity.getType(), modelEntity.getParam());
+                afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 ResultUtils.error(ResultEnum.GET_PARAMS_ERROR);
             }
@@ -138,17 +129,36 @@ public class ModelController {
             // 然后预测结果
             String ps = null;
             try {
+                beforeDoPredict = System.currentTimeMillis();
                 ps = doPredict(params, "/tensorflow/" + modelName + "/v1/models/" + modelName + ":predict");
+                afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
                 throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), e.getMessage());
             }
-            return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params));
+            return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
+                    afterGetParams - beforeGetParams,
+                    afterDoPredict - beforeDoPredict));
         }
 
         return ResultUtils.error(ResultEnum.UNKNOWN_MODEL_TYPE);
     }
 
+    /**
+     * 获取参数
+     *
+     * 如果是mleap，首先访问mleap-params-transformer获取到分词，然后拼成
+     * {"schema":{"fields":[{"name":"word","type":"string"}]},"rows":[["增值税 的 税率 是 多少"]]}
+     *
+     * 如果是tensorflow的脏话模型，首先访问tensorflow-dirtyword-params-transformer获取到向量，然后拼成
+     * {"instances": [{"input_ids":[101,4318,1673,7027,1402,679,1139,6496,4280,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"input_mask":[1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"label_ids":0,"segment_ids":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
+     *
+     * @param sentence
+     * @param modelType
+     * @param modelParam
+     * @return
+     * @throws Exception
+     */
     private String getParams(String sentence, int modelType, int modelParam) throws Exception {
         if (modelType == ModelTypeEnum.MLEAP.getCode()) {
             URI uri = new URIBuilder()
@@ -191,6 +201,13 @@ public class ModelController {
         }
     }
 
+    /**
+     * 调用tensorflow/serving或mleap-serving预测结果
+     * @param params
+     * @param path
+     * @return
+     * @throws Exception
+     */
     private String doPredict(String params, String path) throws Exception {
         URI uri = new URIBuilder()
                 .setScheme("http")
@@ -206,7 +223,16 @@ public class ModelController {
         return EntityUtils.toString(entity);
     }
 
-    private PredictResultVO getTensorflowDirtywordPredictResultVO(String ps, String sentence, String params) {
+    /**
+     * 获取返回的tensorflow脏话预测结果VO
+     * @param ps
+     * @param sentence
+     * @param params
+     * @param getParamsCostMs
+     * @param predictCostMs
+     * @return
+     */
+    private PredictResultVO getTensorflowDirtywordPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
         // 先将预测结果转化为JsonNode
         JsonNode jsonNode = null;
         try {
@@ -233,10 +259,21 @@ public class ModelController {
         predictResultVO.setPredict(isDirtyword >= 0.5 ? 1 : 0);
         predictResultVO.setPredictString(isDirtyword >= 0.5 ? "脏话" : "非脏话");
         predictResultVO.setProbability(isDirtyword);
+        predictResultVO.setGetParamsCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
         return predictResultVO;
     }
 
-    private PredictResultVO getMLeapPredictResultVO(String ps, String sentence, String params) {
+    /**
+     * 获取返回的mleap预测结果VO
+     * @param ps
+     * @param sentence
+     * @param params
+     * @param getParamsCostMs
+     * @param predictCostMs
+     * @return
+     */
+    private PredictResultVO getMLeapPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
 
         // 先将预测结果转化为JsonNode
         JsonNode jsonNode = null;
@@ -294,6 +331,8 @@ public class ModelController {
             predictResultVO.setPredict(predict);
             predictResultVO.setPredictString(predictString);
             predictResultVO.setProbability(predictProbability);
+            predictResultVO.setGetParamsCostMs(getParamsCostMs);
+            predictResultVO.setPredictCostMs(predictCostMs);
         }
 
         return predictResultVO;

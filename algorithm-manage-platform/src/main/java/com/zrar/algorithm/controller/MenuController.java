@@ -19,7 +19,7 @@ public class MenuController {
      * @return
      */
     @GetMapping("/")
-    public String main(Model model) {
-        return "main";
+    public String index(Model model) {
+        return "index";
     }
 }

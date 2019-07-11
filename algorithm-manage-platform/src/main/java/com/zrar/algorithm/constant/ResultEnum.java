@@ -28,6 +28,7 @@ public enum ResultEnum {
     GET_PARAMS_ERROR(17, "获取参数失败"),
     UNKNOWN_MODEL_TYPE(18, "未知的模型类型"),
     CMD_ERROR(19, "命令错误"),
+    FORM_ERROR(20, "表单错误"),
     ;
 
     Integer code;

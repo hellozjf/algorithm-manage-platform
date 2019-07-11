@@ -20,6 +20,16 @@ public class PredictResultVO {
     private JsonNode params;
 
     /**
+     * 获取参数花费的毫秒数
+     */
+    private Long getParamsCostMs;
+
+    /**
+     * 预测花费的毫秒数
+     */
+    private Long predictCostMs;
+
+    /**
      * 预测的分类结果
      */
     private String predictString;

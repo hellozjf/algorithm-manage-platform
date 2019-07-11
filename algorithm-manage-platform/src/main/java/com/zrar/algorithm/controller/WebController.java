@@ -17,6 +17,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,7 +28,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 页面上所使用的controller
@@ -57,9 +61,6 @@ public class WebController {
     private MLeapService mLeapService;
 
     @Autowired
-    private TensorflowService tensorflowService;
-
-    @Autowired
     private RemoteService remoteService;
 
     @Autowired
@@ -85,7 +86,8 @@ public class WebController {
     @Transactional(rollbackFor = Exception.class)
     @PostMapping("/addModel")
     public ResultVO addModel(@RequestParam("file") MultipartFile multipartFile,
-                             @Valid ModelForm modelForm) {
+                             @Valid ModelForm modelForm,
+                             BindingResult bindingResult) {
 
         // 判断上传过来的文件是不是空的
         if (multipartFile.isEmpty()) {
@@ -148,7 +150,7 @@ public class WebController {
         // 先把记录写到数据库中
         ModelEntity modelEntity = new ModelEntity();
         BeanUtils.copyProperties(modelForm, modelEntity);
-        modelRepository.save(modelEntity);
+        modelEntity = modelRepository.save(modelEntity);
 
         // 通过数据库记录生成新的docker-compose.yml文件
         try {
@@ -189,24 +191,25 @@ public class WebController {
     }
 
     /**
-     * 删除模型
-     *
-     * @param modelEntity
+     * 根据id或name删除模型
+     * @param id
      * @return
      */
     @PostMapping("/delModel")
-    public ResultVO delModel(ModelEntity modelEntity) {
-        // 先让docker下线
+    public ResultVO delModel(String id, String name) {
+        // 先根据ID找到模型实体
+        ModelEntity modelEntity = getModelEntityByIdOrName(id, name);
+
+        // 让docker下线
         try {
             dockerService.deleteDocker(modelEntity.getName());
         } catch (Exception e) {
             log.error("e = {}", e);
         }
+
         // 删除数据库中的记录
-        ModelEntity entity = modelRepository.findById(modelEntity.getId()).get();
-        if (entity != null) {
-            modelRepository.delete(modelEntity);
-        }
+        modelRepository.delete(modelEntity);
+
         // 重新生成docker-compose.yml
         try {
             dockerService.generateDockerComposeYml();
@@ -217,7 +220,7 @@ public class WebController {
     }
 
     /**
-     * 修改模型
+     * 根据id或name修改模型
      * 前端是只允许修改模型描述，他要改其它参数，就先删除再重新添加
      *
      * @param id
@@ -225,24 +228,39 @@ public class WebController {
      * @return
      */
     @PostMapping("/updateModel")
-    public ResultVO updateModel(String id, String desc) {
-        ModelEntity entity = modelRepository.findById(id).get();
+    public ResultVO updateModel(String id, String name, String desc) {
+        ModelEntity entity = getModelEntityByIdOrName(id, name);
         entity.setDesc(desc);
-        modelRepository.save(entity);
+        entity = modelRepository.save(entity);
         return ResultUtils.success(entity);
+    }
+
+    private ModelEntity getModelEntityByIdOrName(String id, String name) {
+        ModelEntity entity;
+        if (!StringUtils.isEmpty(id)) {
+            entity = modelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        } else if (!StringUtils.isEmpty(name)) {
+            entity = modelRepository.findByName(name).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        } else {
+            throw new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR);
+        }
+        return entity;
     }
 
     /**
      * 获取所有模型类型
+     *
      * @return
      */
     @GetMapping("/getAllModelType")
     public ResultVO getAllModelType() {
-        List<ModelTypeEnum> modelTypeEnumList = new ArrayList<>();
+        List<Map<Integer, String>> mapList = new ArrayList<>();
         for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
-            modelTypeEnumList.add(modelTypeEnum);
+            Map<Integer, String> map = new HashMap<>();
+            map.put(modelTypeEnum.getCode(), modelTypeEnum.getDesc());
+            mapList.add(map);
         }
-        return ResultUtils.success(modelTypeEnumList);
+        return ResultUtils.success(mapList);
     }
 
     /**
@@ -252,13 +270,15 @@ public class WebController {
      */
     @GetMapping("/getAllModelParam")
     public ResultVO getAllModelParam(int modelTypeCode) {
-        List<ModelParamEnum> modelParamEnumList = new ArrayList<>();
+        List<Map<Integer, String>> mapList = new ArrayList<>();
         ModelParamEnum[] modelParamEnums = ModelParamEnum.values();
         for (ModelParamEnum modelParamEnum : modelParamEnums) {
             if (modelParamEnum.getModelTypeCode() == modelTypeCode) {
-                modelParamEnumList.add(modelParamEnum);
+                Map<Integer, String> map = new HashMap<>();
+                map.put(modelParamEnum.getCode(), modelParamEnum.getDesc());
+                mapList.add(map);
             }
         }
-        return ResultUtils.success(modelParamEnumList);
+        return ResultUtils.success(mapList);
     }
 }
