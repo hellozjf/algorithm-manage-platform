@@ -54,18 +54,18 @@ public class BridgeController {
     }
 
     /**
-     * 通过algorithm-bridge访问tensorflow-dirtyword-params-transformer，将文本转化为脏话参数
+     * 通过algorithm-bridge访问tensorflow-params-transformer，将文本转化为tensorflow所需要的参数
      * @param request
      * @param headers
      * @param body
      * @return
      * @throws UnsupportedEncodingException
      */
-    @RequestMapping("/tensorflow/dirtyword/params/transformer")
-    public ResponseEntity<byte[]> tensorflowDirtywordParamsTransformer(HttpServletRequest request,
+    @RequestMapping("/tensorflow/params/transformer")
+    public ResponseEntity<byte[]> tensorflowParamsTransformer(HttpServletRequest request,
                                                          @RequestHeader MultiValueMap<String, String> headers,
                                                          @RequestBody(required = false) byte[] body) throws UnsupportedEncodingException {
-        String url = UrlUtils.getUrl(request.getScheme(), "tensorflow-dirtyword-params-transformer", 5000, "getParams");
+        String url = UrlUtils.getUrl(request.getScheme(), "tensorflow-params-transformer", 5000, "getParams");
         String queryString = request.getQueryString();
         if (!StringUtils.isEmpty(queryString)) {
             url = url + "?" + queryString;
