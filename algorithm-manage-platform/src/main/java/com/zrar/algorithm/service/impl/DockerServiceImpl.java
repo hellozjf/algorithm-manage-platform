@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author Jingfeng Zhou
@@ -199,7 +198,7 @@ public class DockerServiceImpl implements DockerService {
         DockerComposeDTO.Service bridge = new DockerComposeDTO.Service();
         bridge.setImage(customConfig.getHarborIp() + "/zrar/algorithm-bridge:1.0.0");
         bridge.setNetworks(Arrays.asList("algorithm-bridge"));
-        bridge.setPorts(Arrays.asList("8083:8080"));
+        bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080"));
         services.set("bridge", yamlObjectMapper.valueToTree(bridge));
 
         // 添加tensorflow-dirtyword-params-transformer的service
