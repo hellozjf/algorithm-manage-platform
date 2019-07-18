@@ -7,6 +7,7 @@ import collections
 from flask import Flask
 from flask import jsonify
 from flask import request
+import re
 
 app = Flask(__name__)
 
@@ -218,6 +219,10 @@ def convert_single_example2(ex_index, example, label_list, max_seq_length, token
 @app.route('/getParams', methods=['POST'])
 def getParams():
     sentence = request.form['sentence']
+    method = request.form['method']
+    if method == 'stripPunctuation':
+        # 去除标点
+        sentence = re.sub('\W', '', sentence)
     print('sentence:', sentence)
     example = {
         'label': '0',
