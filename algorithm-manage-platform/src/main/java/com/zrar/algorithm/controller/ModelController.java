@@ -109,8 +109,7 @@ public class ModelController {
                     afterGetParams - beforeGetParams,
                     afterDoPredict - beforeDoPredict));
 
-        } else if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode() &&
-                modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
+        } else if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
             // tensorflow的模型
 
             // 首先获取参数
@@ -136,9 +135,18 @@ public class ModelController {
                 log.error("e = {}", e);
                 throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), e.getMessage());
             }
-            return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
-                    afterGetParams - beforeGetParams,
-                    afterDoPredict - beforeDoPredict));
+
+            if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
+                // 脏话模型的结果
+                return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+                // 情感分析的结果
+                return ResultUtils.success(getTensorflowSentimentAnalysisPredictResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
+            }
         }
 
         return ResultUtils.error(ResultEnum.UNKNOWN_MODEL_TYPE);
@@ -182,12 +190,12 @@ public class ModelController {
             URI uri = new URIBuilder()
                     .setScheme("http")
                     .setHost(customConfig.getBridgeIp())
-                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/dirtyword/params/transformer")
-                    .setParameter("sentence", sentence)
+                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/params/transformer")
                     .build();
             HttpPost httpPost = new HttpPost(uri);
             List<NameValuePair> formparams = new ArrayList<>();
             formparams.add(new BasicNameValuePair("sentence", sentence));
+            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(modelParam)));
             UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
             httpPost.setEntity(formEntity);
 
@@ -259,6 +267,48 @@ public class ModelController {
         predictResultVO.setPredict(isDirtyword >= 0.5 ? 1 : 0);
         predictResultVO.setPredictString(isDirtyword >= 0.5 ? "脏话" : "非脏话");
         predictResultVO.setProbability(isDirtyword);
+        predictResultVO.setGetParamsCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的tensorflow情感分析预测结果VO
+     * @param ps
+     * @param sentence
+     * @param params
+     * @param getParamsCostMs
+     * @param predictCostMs
+     * @return
+     */
+    private PredictResultVO getTensorflowSentimentAnalysisPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        ArrayNode arrayNode1 = (ArrayNode) arrayNode.get(0);
+        double r0 = arrayNode1.get(0).asDouble();
+        double r1 = arrayNode1.get(1).asDouble();
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredict(r0 > 0.8 ? 0 : 1);
+        predictResultVO.setPredictString("");
+        predictResultVO.setProbability(r0 > 0.8 ? r0 : r1);
         predictResultVO.setGetParamsCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
         return predictResultVO;

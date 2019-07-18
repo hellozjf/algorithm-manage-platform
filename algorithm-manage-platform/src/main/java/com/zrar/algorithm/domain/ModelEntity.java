@@ -43,7 +43,7 @@ public class ModelEntity extends BaseEntity {
     /**
      * 模型参数
      * 如果模型类型是mleap，则支持切词、切词——税务专有词、切短语
-     * 如果模型类型是tensorflow，则支持脏话
+     * 如果模型类型是tensorflow，则支持脏话、情感分析
      * @see com.zrar.algorithm.constant.ModelParamEnum
      */
     private int param;

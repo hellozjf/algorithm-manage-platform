@@ -203,18 +203,18 @@ public class DockerServiceImpl implements DockerService {
         services.set("bridge", yamlObjectMapper.valueToTree(bridge));
 
         // 添加tensorflow-dirtyword-params-transformer的service
-        DockerComposeDTO.Service tensorflowDirtywordParamsTransformer = new DockerComposeDTO.Service();
-        tensorflowDirtywordParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-dirtyword-params-transformer:1.0.0");
-        tensorflowDirtywordParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
+        DockerComposeDTO.Service tensorflowParamsTransformer = new DockerComposeDTO.Service();
+        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.0");
+        tensorflowParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
         // 默认是5000端口
-        services.set("tensorflow-dirtyword-params-transformer", yamlObjectMapper.valueToTree(tensorflowDirtywordParamsTransformer));
+        services.set("tensorflow-params-transformer", yamlObjectMapper.valueToTree(tensorflowParamsTransformer));
 
         // 添加mleap-params-transformer的service
         DockerComposeDTO.Service mleapParamsTransformer = new DockerComposeDTO.Service();
-        tensorflowDirtywordParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/mleap-params-transformer:1.0.0");
-        tensorflowDirtywordParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
+        mleapParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/mleap-params-transformer:1.0.0");
+        mleapParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
         // 默认是8080端口
-        services.set("mleap-params-transformer", yamlObjectMapper.valueToTree(tensorflowDirtywordParamsTransformer));
+        services.set("mleap-params-transformer", yamlObjectMapper.valueToTree(mleapParamsTransformer));
 
         dockerComposeDTO.setServices(services);
 
