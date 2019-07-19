@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>算法服务平台</title>
+  <link rel="stylesheet" type="text/css" href="/css/easyui.css">
+  <link rel="stylesheet" type="text/css" href="/css/icon.css">
+  <link rel="stylesheet" type="text/css" href="/css/demo.css">
+</head>
+<body>
+
+<div id="toolbar" style="height:auto">
+  <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-add',plain:true"
+     onclick="$('#addModelDlg').dialog('open');">添加模型</a>
+  <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-remove',plain:true"
+     onclick="delModel()">删除模型</a>
+  <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-reload',plain:true"
+     onclick="reboot()">重启</a>
+</div>
+
+<table id="datagrid" class="easyui-datagrid" title="模型列表" style="width:100%;height:auto"
+       data-options="
+				toolbar: '#toolbar',
+				url: '/web/getAllModelList',
+				method: 'get',
+				selectOnCheck: true,
+				checkOnSelect: true,
+				pagination:true,
+				pageSize:10
+			">
+  <thead>
+  <tr>
+    <th data-options="field:'ck', checkbox:true"></th>
+    <th data-options="field:'id', hidden:true">编号</th>
+    <th data-options="field:'name', width:300">模型名称</th>
+    <th data-options="field:'desc', width:300">模型描述</th>
+    <th data-options="field:'md5', width:300">模型MD5</th>
+    <th data-options="field:'typeName', width:300">模型类型</th>
+    <th data-options="field:'paramName', width:300">模型参数</th>
+    <!--<th data-options="field:'formatOper',width:400,align:'center',formatter:formatOper">操作</th>-->
+  </tr>
+  </thead>
+</table>
+
+<!--添加模型的对话框-->
+<div id="addModelDlg" class="easyui-dialog" title="添加模型"
+     data-options="iconCls:'icon-save',modal:true,closed:true"
+     style="width:400px;">
+  <form id="addModelForm" action="/web/addModel" method="post" enctype="multipart/form-data">
+    <table cellpadding="5">
+      <tr>
+        <td>模型名称:</td>
+        <td><input class="easyui-textbox" type="text" name="name" data-options="required:true"></td>
+      </tr>
+      <tr>
+        <td>模型描述:</td>
+        <td><input class="easyui-textbox" type="text" name="desc"></td>
+      </tr>
+      <tr>
+        <td>模型类型:</td>
+        <td><select id="addModelFormModelType" class="easyui-combobox" name="type" style="width:200px;"
+                    data-options="
+                        url:'/web/getModelTypeList',
+								        method:'get',
+                        valueField:'code',
+                        textField:'desc',
+                        panelHeight:'auto',
+                        onSelect: function (rec) {
+                          console.debug(rec);
+                          $('#addModelFormModelParam').combobox({
+                            url:'/web/getModelParamList?typeCode=' + rec.code,
+                            method:'get',
+                            valueField:'code',
+                            textField:'desc',
+                            panelHeight:'auto'
+                          });
+                        }
+                    "/></td>
+      </tr>
+      <tr>
+        <td>模型参数:</td>
+        <td><select id="addModelFormModelParam" class="easyui-combobox" name="param" style="width:200px;"/></td>
+      </tr>
+      <tr>
+        <td>模型文件:</td>
+        <td><input class="easyui-filebox" name="file" data-options="prompt:'请选择一个文件'" style="width:100%"></td>
+      </tr>
+    </table>
+  </form>
+  <div style="text-align:center;padding:5px">
+    <a href="javascript:void(0)" class="easyui-linkbutton" onclick="
+      $.messager.progress({
+            title: '提示',
+            msg: '模型上传中',
+            text: '请耐心等待...',
+            interval: '1000',
+      });
+      $('#addModelForm').form('submit',{
+        success: function(data){
+          $.messager.progress('close');
+          var json = JSON.parse(data);
+          console.debug(json);
+          if (json.code == 0) {
+            $.messager.show({
+              title: '添加模型成功',
+              msg: json.data.name + '已经添加成功，MD5值为' + json.data.md5,
+              timeout: 5000,
+              showType: 'slide'
+            });
+            $('#addModelDlg').dialog('close');
+            $('#datagrid').datagrid('reload');
+            $('#datagrid').datagrid('clearSelections');
+          } else {
+            $('#addModelDlg').dialog('close');
+            $.messager.alert({
+              title: '模型添加失败',
+              msg: json.msg,
+              timeout: 5000,
+              showType: 'slide'
+            })
+          }
+        }
+    });">Submit</a>
+    <a href="javascript:void(0)" class="easyui-linkbutton" onclick="$('#addModelForm').form('clear');">Clear</a>
+  </div>
+</div>
+
+<!--todo 修改-->
+<!--todo 测试-->
+<!--todo 删除-->
+<!--todo 重启-->
+
+<!--测试的对话框-->
+<!--<div id="testDlg" class="easyui-dialog" title="Basic Dialog"-->
+<!--data-options="iconCls:'icon-save',modal:true,closed:true,onClose:endEditing"-->
+<!--style="width:800px;height:600px;padding:10px">-->
+<!--<input type="text" style="display: none" name="modelName">-->
+<!--<table cellpadding="5">-->
+<!--<tr>-->
+<!--<td>测试文本:</td>-->
+<!--<td><input id="testRaw" class="easyui-textbox" name="raw" data-options="multiline:true"-->
+<!--style="height:160px; width:600px"></td>-->
+<!--<td><a href="#" class="easyui-linkbutton" onclick="javascript:testModel()">测试</a></td>-->
+<!--</tr>-->
+<!--<tr>-->
+<!--<td>切词结果:</td>-->
+<!--<td><input id="testWord" class="easyui-textbox" type="text" name="word"-->
+<!--data-options="multiline:true,readonly:true" style="height:160px; width:600px"></td>-->
+<!--</tr>-->
+<!--<tr>-->
+<!--<td>分类结果:</td>-->
+<!--<td><input id="testPredictString" class="easyui-textbox" type="text" name="predictString"-->
+<!--data-options="readonly:true" style="width: 600px"></td>-->
+<!--</tr>-->
+<!--<tr>-->
+<!--<td>分类类别:</td>-->
+<!--<td><input id="testPredict" class="easyui-textbox" type="text" name="predict" data-options="readonly:true"-->
+<!--style="width: 600px"></td>-->
+<!--</tr>-->
+<!--<tr>-->
+<!--<td>置信度:</td>-->
+<!--<td><input id="testProbability" class="easyui-textbox" type="text" name="probability"-->
+<!--data-options="readonly:true" style="width: 600px"></td>-->
+<!--</tr>-->
+<!--</table>-->
+<!--</div>-->
+
+<script type="text/javascript" src="/js/jquery.min.js"></script>
+<script type="text/javascript" src="/js/jquery.easyui.min.js"></script>
+<script type="text/javascript">
+</script>
+</body>
+</html>

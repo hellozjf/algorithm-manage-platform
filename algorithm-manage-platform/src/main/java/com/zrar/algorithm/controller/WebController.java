@@ -8,14 +8,23 @@ import com.zrar.algorithm.domain.ModelEntity;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.form.ModelForm;
 import com.zrar.algorithm.repository.ModelRepository;
-import com.zrar.algorithm.service.*;
+import com.zrar.algorithm.service.DockerService;
+import com.zrar.algorithm.service.FileService;
+import com.zrar.algorithm.service.MLeapService;
+import com.zrar.algorithm.service.RemoteService;
+import com.zrar.algorithm.util.ModelParamUtils;
+import com.zrar.algorithm.util.ModelTypeUtils;
 import com.zrar.algorithm.util.ResultUtils;
+import com.zrar.algorithm.vo.ModelVO;
 import com.zrar.algorithm.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
@@ -25,10 +34,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.Valid;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 页面上所使用的controller
@@ -70,9 +77,36 @@ public class WebController {
      * @return
      */
     @GetMapping("/getAllModels")
-    public ResultVO getAllModels() {
+    public ResultVO getAllModels(Pageable pageable) {
+        Page<ModelEntity> modelEntityPage = modelRepository.findAll(pageable);
+        List<ModelEntity> modelEntityList = modelEntityPage.getContent();
+        List<ModelVO> modelVOList = getModelVOList(modelEntityList);
+        Page<ModelVO> modelVOPage = new PageImpl<>(modelVOList, modelEntityPage.getPageable(), modelEntityPage.getTotalElements());
+        return ResultUtils.success(modelVOPage);
+    }
+
+    private List<ModelVO> getModelVOList(List<ModelEntity> modelEntityList) {
+        return modelEntityList.stream().map(modelEntity -> {
+            ModelVO modelVO = new ModelVO();
+            BeanUtils.copyProperties(modelEntity, modelVO);
+            modelVO.setTypeName(ModelTypeUtils.getDescByCode(modelVO.getType()));
+            modelVO.setParamName(ModelParamUtils.getDescByCode(modelVO.getParam()));
+            return modelVO;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 获取easyui所需要的模型列表
+     * @return
+     */
+    @GetMapping("/getAllModelList")
+    public Map<String, Object> getAllModelList() {
         List<ModelEntity> modelEntityList = modelRepository.findAll();
-        return ResultUtils.success(modelEntityList);
+        List<ModelVO> modelVOList = getModelVOList(modelEntityList);
+        Map<String, Object> map = new HashMap<>();
+        map.put("total", modelVOList.size());
+        map.put("rows", modelVOList);
+        return map;
     }
 
     /**
@@ -269,6 +303,22 @@ public class WebController {
     }
 
     /**
+     * 给easyui提供模型类型列表
+     * @return
+     */
+    @GetMapping("/getModelTypeList")
+    public List<Map<String, Object>> getModelTypeList() {
+        List<Map<String, Object>> mapList = new ArrayList<>();
+        for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("code", modelTypeEnum.getCode());
+            map.put("desc", modelTypeEnum.getDesc());
+            mapList.add(map);
+        }
+        return mapList;
+    }
+
+    /**
      * 获取某个模型类型下面的所有模型参数
      *
      * @return
@@ -285,5 +335,23 @@ public class WebController {
             }
         }
         return ResultUtils.success(mapList);
+    }
+
+    /**
+     * 给easyui提供模型参数列表
+     * @return
+     */
+    @GetMapping("/getModelParamList")
+    public List<Map<String, Object>> getModelParamList(int typeCode) {
+        List<Map<String, Object>> mapList = new ArrayList<>();
+        for (ModelParamEnum modelParamEnum : ModelParamEnum.values()) {
+            if (modelParamEnum.getModelTypeCode() == typeCode) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("code", modelParamEnum.getCode());
+                map.put("desc", modelParamEnum.getDesc());
+                mapList.add(map);
+            }
+        }
+        return mapList;
     }
 }
