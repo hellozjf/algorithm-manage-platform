@@ -1,5 +1,7 @@
 package com.zrar.algorithm.service;
 
+import com.zrar.algorithm.domain.ModelEntity;
+
 import java.io.IOException;
 
 /**
@@ -20,10 +22,24 @@ public interface DockerService {
     void init();
 
     /**
+     * 解压模型
+     * @param name
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    void unpackModel(String name) throws IOException, InterruptedException;
+
+    /**
      * 复制docker-compose.yml文件
      * @throws Exception
      */
     void copyDockerComposeYml() throws Exception;
+
+    /**
+     * 重启docker容器
+     * @param modelName
+     */
+    void restartDocker(String modelName);
 
     /**
      * 创建docker容器

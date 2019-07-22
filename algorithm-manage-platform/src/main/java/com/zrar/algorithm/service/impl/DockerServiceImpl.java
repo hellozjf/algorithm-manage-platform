@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zrar.algorithm.config.CustomConfig;
 import com.zrar.algorithm.constant.ModelTypeEnum;
+import com.zrar.algorithm.constant.ResultEnum;
 import com.zrar.algorithm.domain.ModelEntity;
 import com.zrar.algorithm.dto.DockerComposeDTO;
+import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.ModelRepository;
 import com.zrar.algorithm.service.DockerService;
 import com.zrar.algorithm.service.FileService;
@@ -17,8 +19,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 
@@ -104,6 +105,23 @@ public class DockerServiceImpl implements DockerService {
                 log.debug("{} return {}", cmd, process.waitFor());
             }
 
+            // 如果是tensorflow模型，还需要解压
+            File[] files = folder.listFiles();
+            for (File file : files) {
+                if (file.isFile()) {
+                    String name = file.getName().split("\\.")[0];
+                    log.debug("name = {}", name);
+                    if (!modelRepository.findByName(name).isPresent()) {
+                        log.error("找不到文件{}对应的数据库记录，这可能是个脏文件", file.getName());
+                        continue;
+                    }
+                    ModelEntity modelEntity = modelRepository.findByName(name).get();
+                    if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+                        unpackModel(modelEntity.getName());
+                    }
+                }
+            }
+
             // 从数据库中生成新的docker-compose.yml文件
             generateDockerComposeYml();
             copyDockerComposeYml();
@@ -130,6 +148,21 @@ public class DockerServiceImpl implements DockerService {
     }
 
     @Override
+    public void unpackModel(String name) throws IOException, InterruptedException {
+        if (active.equalsIgnoreCase("dev")) {
+            // 开发环境，进入远程服务器，解压模型
+            String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models/; unzip -o " + name + ".zip -d " + name);
+            Process process = runtime.exec(cmd);
+            log.debug("{} return {}", cmd, process.waitFor());
+        } else {
+            // 生产环境，进入宿主机模型目录，解压模型
+            String cmd = "unzip -o " + customConfig.getModelOuterPath() + "/" + name + ".zip -d " + customConfig.getModelOuterPath() + "/" + name;
+            Process process = runtime.exec(cmd);
+            log.debug("{} return {}", cmd, process.waitFor());
+        }
+    }
+
+    @Override
     public void copyDockerComposeYml() throws Exception {
         if (active.equalsIgnoreCase("dev")) {
             String cmd = remoteService.createScpCommand(customConfig.getDockerComposePath(), "/opt/docker/algorithm-manage-platform");
@@ -139,26 +172,45 @@ public class DockerServiceImpl implements DockerService {
     }
 
     @Override
+    public void restartDocker(String modelName) {
+        try {
+            log.debug("关闭容器");
+            deleteDocker(modelName);
+            log.debug("启动容器");
+            createDocker(modelName);
+
+            ModelEntity modelEntity = modelRepository.findByName(modelName).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+            if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
+                String modelPath = fileService.getModelOutterPath(modelName);
+                File modelFile = new File(modelPath);
+                if (modelFile.exists()) {
+                    log.debug("开始恢复{}", modelName);
+                    mLeapService.online(modelName);
+                }
+            }
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+    }
+
+    @Override
     public void createDocker(String modelName) throws Exception {
         String cmd = "docker-compose up -d " + modelName;
-        if (active.equalsIgnoreCase("dev")) {
-            cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; " + cmd);
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
-        } else {
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
-        }
+        execCommand(cmd);
     }
 
     @Override
     public void deleteDocker(String modelName) throws Exception {
         String cmd = "docker-compose rm -sf " + modelName;
+        execCommand(cmd);
+    }
+
+    private void execCommand(String cmd) throws IOException, InterruptedException {
         if (active.equalsIgnoreCase("dev")) {
             cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; " + cmd);
             Process process = runtime.exec(cmd);
             log.debug("{} return {}", cmd, process.waitFor());
-        } else if (active.equalsIgnoreCase("prod")) {
+        } else {
             Process process = runtime.exec(cmd);
             log.debug("{} return {}", cmd, process.waitFor());
         }

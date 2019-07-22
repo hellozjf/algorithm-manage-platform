@@ -44,7 +44,7 @@ public class MLeapServiceImpl implements MLeapService {
     @Override
     public String online(String modelName) {
         // 模型上线的时候可能没有这么快，所以我尝试10次，每次间隔5秒
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; ; i++) {
             try {
                 // 获取模型上线的URL
                 String url = getOnlineUrl(modelName);
@@ -65,9 +65,10 @@ public class MLeapServiceImpl implements MLeapService {
                 ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
                 // 返回上线的结果
                 String responseBody = response.getBody();
+                log.info("第{}次上线模型{}成功", i + 1, modelName);
                 return responseBody;
             } catch (Exception e) {
-                log.error("e = {}", e);
+                log.error("第{}次上线模型{}失败", i + 1, modelName);
                 try {
                     TimeUnit.SECONDS.sleep(5);
                 } catch (InterruptedException e1) {
@@ -75,7 +76,6 @@ public class MLeapServiceImpl implements MLeapService {
                 }
             }
         }
-        throw new AlgorithmException(ResultEnum.MODEL_ONLINE_FAILED);
     }
 
     @Override

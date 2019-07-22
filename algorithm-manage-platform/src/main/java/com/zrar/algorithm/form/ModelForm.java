@@ -18,6 +18,11 @@ import javax.validation.constraints.NotBlank;
 public class ModelForm {
 
     /**
+     * 模型的编号
+     */
+    private String id;
+
+    /**
      * 模型的名称，例如sw、yyth、qgfx……
      * 实际的模型文件后面需要加.zip后缀
      * 模型的名称也是后续algorithm-bridge需要的模型的路径

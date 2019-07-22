@@ -11,9 +11,9 @@
 
 <div id="toolbar" style="height:auto">
   <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-add',plain:true"
-     onclick="$('#addModelDlg').dialog('open');">添加模型</a>
+     onclick="addModel()">添加</a>
   <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-remove',plain:true"
-     onclick="delModel()">删除模型</a>
+     onclick="delModel()">删除</a>
   <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-reload',plain:true"
      onclick="reboot()">重启</a>
 </div>
@@ -24,20 +24,18 @@
 				url: '/web/getAllModelList',
 				method: 'get',
 				selectOnCheck: true,
-				checkOnSelect: true,
-				pagination:true,
-				pageSize:10
+				checkOnSelect: true
 			">
   <thead>
   <tr>
     <th data-options="field:'ck', checkbox:true"></th>
     <th data-options="field:'id', hidden:true">编号</th>
-    <th data-options="field:'name', width:300">模型名称</th>
-    <th data-options="field:'desc', width:300">模型描述</th>
+    <th data-options="field:'name', width:200">模型名称</th>
+    <th data-options="field:'desc', width:200">模型描述</th>
     <th data-options="field:'md5', width:300">模型MD5</th>
-    <th data-options="field:'typeName', width:300">模型类型</th>
-    <th data-options="field:'paramName', width:300">模型参数</th>
-    <!--<th data-options="field:'formatOper',width:400,align:'center',formatter:formatOper">操作</th>-->
+    <th data-options="field:'typeName', width:200">模型类型</th>
+    <th data-options="field:'paramName', width:200">模型参数</th>
+    <th data-options="field:'formatOper',width:200,align:'center',formatter:formatOper">操作</th>
   </tr>
   </thead>
 </table>
@@ -91,9 +89,9 @@
     <a href="javascript:void(0)" class="easyui-linkbutton" onclick="
       $.messager.progress({
             title: '提示',
-            msg: '模型上传中',
+            msg: '添加模型中',
             text: '请耐心等待...',
-            interval: '1000',
+            interval: '1000'
       });
       $('#addModelForm').form('submit',{
         success: function(data){
@@ -113,61 +111,382 @@
           } else {
             $('#addModelDlg').dialog('close');
             $.messager.alert({
-              title: '模型添加失败',
+              title: '添加模型失败',
               msg: json.msg,
               timeout: 5000,
               showType: 'slide'
             })
           }
         }
-    });">Submit</a>
-    <a href="javascript:void(0)" class="easyui-linkbutton" onclick="$('#addModelForm').form('clear');">Clear</a>
+    });">确定</a>
+    <a href="javascript:void(0)" class="easyui-linkbutton" onclick="$('#addModelForm').form('clear');">重置</a>
   </div>
 </div>
 
-<!--todo 修改-->
-<!--todo 测试-->
-<!--todo 删除-->
-<!--todo 重启-->
+<!--修改模型的对话框-->
+<div id="modifyModelDlg" class="easyui-dialog" title="修改模型"
+     data-options="iconCls:'icon-save',modal:true,closed:true"
+     style="width:400px;">
+  <form id="modifyModelForm" action="/web/modifyModel" method="post" enctype="multipart/form-data">
+    <table cellpadding="5">
+      <tr style="display: none">
+        <td>模型ID:</td>
+        <td><input id="modifyModelFormModelId" class="easyui-textbox" type="text" name="id"
+                   data-options="required:true"></td>
+      </tr>
+      <tr>
+        <td>模型名称:</td>
+        <td><input id="modifyModelFormModelName" class="easyui-textbox" type="text" name="name"
+                   data-options="required:true, readonly:true"></td>
+      </tr>
+      <tr>
+        <td>模型描述:</td>
+        <td><input id="modifyModelFormModelDesc" class="easyui-textbox" type="text" name="desc"></td>
+      </tr>
+      <tr>
+        <td>模型类型:</td>
+        <td><select id="modifyModelFormModelType" class="easyui-combobox" name="type" style="width:200px;"
+                    data-options="
+                        url:'/web/getModelTypeList',
+								        method:'get',
+                        valueField:'code',
+                        textField:'desc',
+                        panelHeight:'auto',
+                        onSelect: function (rec) {
+                          console.debug(rec);
+                          $('#modifyModelFormModelParam').combobox({
+                            url:'/web/getModelParamList?typeCode=' + rec.code,
+                            method:'get',
+                            valueField:'code',
+                            textField:'desc',
+                            panelHeight:'auto'
+                          });
+                        }
+                    "/></td>
+      </tr>
+      <tr>
+        <td>模型参数:</td>
+        <td><select id="modifyModelFormModelParam" class="easyui-combobox" name="param" style="width:200px;"/></td>
+      </tr>
+      <tr>
+        <td>模型文件:</td>
+        <td><input class="easyui-filebox" name="file" data-options="prompt:'请选择一个文件'" style="width:100%"></td>
+      </tr>
+    </table>
+  </form>
+  <div style="text-align:center;padding:5px">
+    <a href="javascript:void(0)" class="easyui-linkbutton" onclick="
+      $.messager.progress({
+            title: '提示',
+            msg: '修改模型中',
+            text: '请耐心等待...',
+            interval: '1000'
+      });
+      $('#modifyModelForm').form('submit',{
+        success: function(data){
+          $.messager.progress('close');
+          var json = JSON.parse(data);
+          console.debug(json);
+          if (json.code == 0) {
+            $.messager.show({
+              title: '修改模型成功',
+              msg: json.data.name + '已经修改成功，MD5值为' + json.data.md5,
+              timeout: 5000,
+              showType: 'slide'
+            });
+            $('#modifyModelDlg').dialog('close');
+            $('#datagrid').datagrid('reload');
+            $('#datagrid').datagrid('clearSelections');
+          } else {
+            $('#modifyModelDlg').dialog('close');
+            $.messager.alert({
+              title: '修改模型失败',
+              msg: json.msg,
+              timeout: 5000,
+              showType: 'slide'
+            })
+          }
+        }
+    });">确定</a>
+  </div>
+</div>
 
 <!--测试的对话框-->
-<!--<div id="testDlg" class="easyui-dialog" title="Basic Dialog"-->
-<!--data-options="iconCls:'icon-save',modal:true,closed:true,onClose:endEditing"-->
-<!--style="width:800px;height:600px;padding:10px">-->
-<!--<input type="text" style="display: none" name="modelName">-->
-<!--<table cellpadding="5">-->
-<!--<tr>-->
-<!--<td>测试文本:</td>-->
-<!--<td><input id="testRaw" class="easyui-textbox" name="raw" data-options="multiline:true"-->
-<!--style="height:160px; width:600px"></td>-->
-<!--<td><a href="#" class="easyui-linkbutton" onclick="javascript:testModel()">测试</a></td>-->
-<!--</tr>-->
-<!--<tr>-->
-<!--<td>切词结果:</td>-->
-<!--<td><input id="testWord" class="easyui-textbox" type="text" name="word"-->
-<!--data-options="multiline:true,readonly:true" style="height:160px; width:600px"></td>-->
-<!--</tr>-->
-<!--<tr>-->
-<!--<td>分类结果:</td>-->
-<!--<td><input id="testPredictString" class="easyui-textbox" type="text" name="predictString"-->
-<!--data-options="readonly:true" style="width: 600px"></td>-->
-<!--</tr>-->
-<!--<tr>-->
-<!--<td>分类类别:</td>-->
-<!--<td><input id="testPredict" class="easyui-textbox" type="text" name="predict" data-options="readonly:true"-->
-<!--style="width: 600px"></td>-->
-<!--</tr>-->
-<!--<tr>-->
-<!--<td>置信度:</td>-->
-<!--<td><input id="testProbability" class="easyui-textbox" type="text" name="probability"-->
-<!--data-options="readonly:true" style="width: 600px"></td>-->
-<!--</tr>-->
-<!--</table>-->
-<!--</div>-->
+<div id="testDlg" class="easyui-dialog" title="测试对话框"
+     data-options="iconCls:'icon-save',modal:true,closed:true"
+     style="width:800px;height:600px;padding:10px">
+  <input id="testModelName" type="text" style="display: none" name="modelName">
+  <table cellpadding="5">
+    <tr>
+      <td>测试文本:</td>
+      <td><input id="testRaw" class="easyui-textbox" name="raw" data-options="multiline:true"
+                 style="height:160px; width:600px"></td>
+      <td><a href="#" class="easyui-linkbutton" onclick="test()">测试</a></td>
+    </tr>
+    <tr>
+      <td>参数结果:</td>
+      <td><input id="testWord" class="easyui-textbox" type="text" name="word"
+                 data-options="multiline:true,readonly:true" style="height:160px; width:600px"></td>
+    </tr>
+    <tr>
+      <td>分类结果:</td>
+      <td><input id="testPredictString" class="easyui-textbox" type="text" name="predictString"
+                 data-options="readonly:true" style="width: 600px"></td>
+    </tr>
+    <tr>
+      <td>分类类别:</td>
+      <td><input id="testPredict" class="easyui-textbox" type="text" name="predict" data-options="readonly:true"
+                 style="width: 600px"></td>
+    </tr>
+    <tr>
+      <td>置信度:</td>
+      <td><input id="testProbability" class="easyui-textbox" type="text" name="probability"
+                 data-options="readonly:true" style="width: 600px"></td>
+    </tr>
+  </table>
+</div>
 
 <script type="text/javascript" src="/js/jquery.min.js"></script>
 <script type="text/javascript" src="/js/jquery.easyui.min.js"></script>
 <script type="text/javascript">
+
+  function addModel() {
+    $('#addModelForm').form('clear');
+    $('#addModelDlg').dialog('open');
+  }
+
+  function modifyModel(a) {
+    var id = a.attr('rowId');
+    $('#modifyModelFormModelId').textbox('setValue', id);
+    $.ajax({
+      url: '/web/getModel?id=' + id,
+      method: 'GET',
+      dataType: 'json',
+      success: function (json) {
+        console.debug(json);
+        if (json.code === 0) {
+          $('#modifyModelFormModelName').textbox('setValue', json.data.name);
+          $('#modifyModelFormModelDesc').textbox('setValue', json.data.desc);
+          $('#modifyModelFormModelType').combobox('setValue', json.data.type);
+          $('#modifyModelFormModelParam').combobox('setValue', json.data.param);
+        } else {
+          $.messager.alert({
+            title: '获取模型失败',
+            msg: json.msg,
+            timeout: 5000,
+            showType: 'slide'
+          });
+        }
+      }
+    });
+    $('#modifyModelDlg').dialog('open');
+  }
+
+  function delModel() {
+    $.messager.confirm('警告', '确定删除吗？', function (r) {
+      if (r) {
+        $.messager.progress({
+          title: '提示',
+          msg: '删除模型中',
+          text: '请耐心等待...',
+          interval: '1000',
+        });
+        var ids = [];
+        var rows = $('#datagrid').datagrid('getSelections');
+        for (var i = 0; i < rows.length; i++) {
+          ids.push(rows[i].id);
+        }
+        $.ajax({
+          url: '/web/delModel',
+          data: {
+            ids: ids.join(',')
+          },
+          method: 'POST',
+          dataType: 'json',
+          success: function (json) {
+            $.messager.progress('close');
+            console.debug(json);
+            if (json.code === 0) {
+              $.messager.show({
+                title: '删除模型成功',
+                msg: '删除模型成功',
+                timeout: 5000,
+                showType: 'slide'
+              });
+              $('#datagrid').datagrid('reload');
+              $('#datagrid').datagrid('clearSelections');
+            } else {
+              $.messager.alert({
+                title: '删除模型失败',
+                msg: json.msg,
+                timeout: 5000,
+                showType: 'slide'
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  function test() {
+    console.debug('test');
+    var modelName = $('#testModelName').val();
+    var raw = $('#testRaw').textbox('getValue');
+    $.messager.progress({
+      title: '提示',
+      msg: '等待测试结果返回',
+      text: '请等待...',
+      interval: '1000'
+    });
+    $.post({
+      url: modelName + '/predict',
+      contentType: "application/json",
+      data: raw,
+      dataType: 'json',
+      success: function (json) {
+        if (json.code === 0) {
+          $('#testWord').textbox('setValue', json.data.word);
+          $('#testPredictString').textbox('setValue', json.data.predictString);
+          $('#testPredict').textbox('setValue', json.data.predict);
+          $('#testProbability').textbox('setValue', json.data.probability);
+        } else {
+          $.messager.alert({
+            title: '预测模型失败',
+            msg: json.msg,
+            timeout: 5000,
+            showType: 'slide'
+          });
+        }
+        $.messager.progress('close');
+      }
+    });
+  }
+
+  function testModel(a) {
+    var id = a.attr('rowId');
+    $.ajax({
+      url: '/web/getModel?id=' + id,
+      method: 'GET',
+      dataType: 'json',
+      success: function (json) {
+        console.debug(json);
+        if (json.code === 0) {
+          $('#testModelName').val(json.data.name);
+          $('#testDlg').dialog('open');
+        } else {
+          $.messager.alert({
+            title: '获取模型失败',
+            msg: json.msg,
+            timeout: 5000,
+            showType: 'slide'
+          });
+        }
+      }
+    });
+  }
+
+  function downloadModel(a) {
+    var id = a.attr('rowId');
+    var url = "/web/downloadModel?id=" + id;
+    window.location.href = url;
+  }
+
+  function restartModel(a) {
+    $.messager.confirm('警告', '确定重启吗？', function (r) {
+      if (r) {
+        $.messager.progress({
+          title: '提示',
+          msg: '重启docker',
+          text: '请等待...',
+          interval: '1000',
+        });
+        var id = a.attr('rowId');
+        $.ajax({
+          url: '/web/restartModel',
+          method: 'POST',
+          data: {
+            id: id
+          },
+          dataType: 'json',
+          success: function (json) {
+            $.messager.progress('close');
+            console.debug(json);
+            if (json.code === 0) {
+              $.messager.show({
+                title: '消息',
+                msg: 'docker重启成功',
+                timeout: 5000,
+                showType: 'slide'
+              });
+            } else {
+              $.messager.alert({
+                title: 'docker重启失败',
+                msg: json.msg,
+                timeout: 5000,
+                showType: 'slide'
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  function formatOper(val, row, index) {
+    if (row.id) {
+      // console.debug('val=' + val + ' row=' + JSON.stringify(row) + ' index=' + index + ' id=' + row.id);
+      return '&nbsp;<a href="#" rowId="' + row.id + '" index="' + index + '" onclick="modifyModel($(this))">修改</a>&nbsp;'
+        + '&nbsp;<a href="#" rowId="' + row.id + '" index="' + index + '" onclick="testModel($(this))">测试</a>&nbsp;'
+        + '&nbsp;<a href="#" rowId="' + row.id + '" index="' + index + '" onclick="downloadModel($(this))">下载</a>&nbsp;'
+        + '&nbsp;<a href="#" rowId="' + row.id + '" index="' + index + '" onclick="restartModel($(this))">重启</a>&nbsp;';
+    } else {
+      return '';
+    }
+  }
+
+  function reboot() {
+    $.messager.confirm('警告', '确定重启吗？', function (r) {
+      if (r) {
+        $.messager.progress({
+          title: '提示',
+          msg: '重启docker',
+          text: '请等待...',
+          interval: '1000',
+        });
+        $.post({
+          url: '/web/reboot',
+          dataType: 'json',
+          success: function (data) {
+            console.debug(data);
+            $.messager.progress('close');
+            $('#datagrid').datagrid('reload');
+            $.messager.show({
+              title: '消息',
+              msg: 'docker重启成功',
+              timeout: 5000,
+              showType: 'slide'
+            });
+          }
+        })
+      }
+    });
+  }
+
+  $(function(){
+    $.messager.progress({
+      title: '提示',
+      msg: '服务启动中',
+      text: '请等待...',
+      interval: '1000',
+    });
+    $.get({
+      url: 'web/waitForStarted',
+      success: function (e) {
+        $.messager.progress('close');
+      }
+    });
+  });
 </script>
 </body>
 </html>
