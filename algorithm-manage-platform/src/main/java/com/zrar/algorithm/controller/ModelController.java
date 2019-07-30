@@ -1,5 +1,6 @@
 package com.zrar.algorithm.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,35 +12,33 @@ import com.zrar.algorithm.domain.ModelEntity;
 import com.zrar.algorithm.dto.Indexes;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.ModelRepository;
+import com.zrar.algorithm.util.DictMapUtils;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
+import com.zrar.algorithm.util.WordUtils;
 import com.zrar.algorithm.vo.PredictResultVO;
 import com.zrar.algorithm.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @author Jingfeng Zhou
@@ -136,12 +135,12 @@ public class ModelController {
                 throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), e.getMessage());
             }
 
-            if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
+            if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_NORMAL.getCode()) {
                 // 脏话模型的结果
-                return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
+                return ResultUtils.success(getTensorflowNormalPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_REMOVE_PUNCTUATION.getCode()) {
                 // 情感分析的结果
                 return ResultUtils.success(getTensorflowSentimentAnalysisPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -150,6 +149,139 @@ public class ModelController {
         }
 
         return ResultUtils.error(ResultEnum.UNKNOWN_MODEL_TYPE);
+    }
+
+    /**
+     * 获取分词数据
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    @GetMapping("/getRawMLeapParams")
+    public String getRawMLeapParams(String sentence, int paramCode) {
+        String wordCut = null;
+        if (paramCode == ModelParamEnum.MLEAP_CUT_WORD.getCode()) {
+            wordCut = WordUtils.wordCut(sentence, "");
+        } else if (paramCode == ModelParamEnum.MLEAP_CUT_WORD_VSWZYC.getCode()) {
+            wordCut = WordUtils.wordCut(sentence, ModelParamEnum.MLEAP_CUT_WORD_VSWZYC.getNature());
+        } else if (paramCode == ModelParamEnum.MLEAP_PHRASE_LIST.getCode()) {
+            wordCut = WordUtils.phraseList(sentence);
+        }
+        log.debug("sentence = {}, paramCode = {}, wordCut = {}", sentence, paramCode, wordCut);
+        return wordCut;
+    }
+
+    /**
+     * 获取tensorflow向量
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    @GetMapping("/getRawTensorflowParams")
+    public String getRawTensorflowParams(String sentence, int paramCode) {
+        if (paramCode == ModelParamEnum.TENSORFLOW_NORMAL.getCode()) {
+            // 啥都不处理
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_REMOVE_PUNCTUATION.getCode()) {
+            // 替换掉标点符号
+            sentence.replaceAll("\\W", "");
+        }
+
+        // 这里我不知道怎么切割出单个字和完整的数字，所以我先全部切成单个，切完再处理成完整的数字
+        String[] words = sentence.split("");
+        List<String> wordList = new ArrayList<>();
+        wordList.add("[CLS]");
+        StringBuilder number = new StringBuilder();
+        for (String word : words) {
+            if (org.apache.commons.lang3.StringUtils.isNumeric(word)) {
+                // 数字先放到缓冲区缓存起来
+                number.append(word);
+            } else {
+                if (! StringUtils.isEmpty(number.toString())) {
+                    // 将之前缓存的数字放入list中
+                    wordList.add(number.toString());
+                    // 清除缓存的数字
+                    number.setLength(0);
+                }
+                wordList.add(word);
+            }
+        }
+        if (! StringUtils.isEmpty(number.toString())) {
+            // 将之前缓存的数字放入list中
+            wordList.add(number.toString());
+            // 清除缓存的数字
+            number.setLength(0);
+        }
+        wordList.add("[SEP]");
+
+        Map<String, Integer> dictMap = DictMapUtils.getDictMap();
+        List<Integer> integerList = wordList.stream().map(word -> {
+            Integer integer = dictMap.get(word);
+            if (integer == null) {
+                return dictMap.get("[UNK]");
+            } else {
+                return integer;
+            }
+        }).collect(Collectors.toList());
+
+        int maxSeqLength = 128;
+        List<Integer> inputIds = new ArrayList<>();
+        List<Integer> inputMask = new ArrayList<>();
+        List<Integer> segmentIds = new ArrayList<>();
+        if (integerList.size() > maxSeqLength) {
+            // 如果integerList长度太长，则它第128个元素置为结束符
+            integerList.set(maxSeqLength - 1, integerList.get(integerList.size() - 1));
+        } else if (integerList.size() < maxSeqLength) {
+            // 如果integerList长度不够，则需要补零
+            for (int i = integerList.size(); i < maxSeqLength; i++) {
+                integerList.add(0);
+            }
+        }
+        for (int i = 0; i < maxSeqLength; i++) {
+            int t = integerList.get(i);
+            inputIds.add(t);
+            if (t > 0) {
+                inputMask.add(1);
+            } else {
+                inputMask.add(0);
+            }
+            segmentIds.add(0);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("input_ids", inputIds);
+        result.put("input_mask", inputMask);
+        result.put("label_ids", 0);
+        result.put("segment_ids", segmentIds);
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (JsonProcessingException e) {
+            log.error("e = {}", e);
+            return "";
+        }
+    }
+
+    /**
+     * 获取喂给mleap的数据
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    @GetMapping("/getMLeapParams")
+    public String getMLeapParams(String sentence, int paramCode) {
+        String res = getRawMLeapParams(sentence, paramCode);
+        return "{\"schema\":{\"fields\":[{\"name\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
+    }
+
+    /**
+     * 获取喂给tensorflow的数据
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    @GetMapping("/getTensorflowParams")
+    public String getTensorflowParams(String sentence, int paramCode) {
+        String res = getRawTensorflowParams(sentence, paramCode);
+        return "{\"instances\": [" + res + "]}";
     }
 
     /**
@@ -169,40 +301,9 @@ public class ModelController {
      */
     private String getParams(String sentence, int modelType, int modelParam) throws Exception {
         if (modelType == ModelTypeEnum.MLEAP.getCode()) {
-            URI uri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(customConfig.getBridgeIp())
-                    .setPort(customConfig.getBridgePort())
-                    .setPath("/mleap/params/transformer")
-                    .build();
-            HttpPost httpPost = new HttpPost(uri);
-            List<NameValuePair> formparams = new ArrayList<>();
-            formparams.add(new BasicNameValuePair("sentence", sentence));
-            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(modelParam)));
-            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
-            httpPost.setEntity(formEntity);
-
-            CloseableHttpResponse response = httpClient.execute(httpPost);
-            HttpEntity entity = response.getEntity();
-            String res = EntityUtils.toString(entity);
-            return "{\"schema\":{\"fields\":[{\"name\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
+            return getMLeapParams(sentence, modelParam);
         } else if (modelType == ModelTypeEnum.TENSORFLOW.getCode()) {
-            URI uri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(customConfig.getBridgeIp())
-                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/params/transformer")
-                    .build();
-            HttpPost httpPost = new HttpPost(uri);
-            List<NameValuePair> formparams = new ArrayList<>();
-            formparams.add(new BasicNameValuePair("sentence", sentence));
-            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(modelParam)));
-            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
-            httpPost.setEntity(formEntity);
-
-            CloseableHttpResponse response = httpClient.execute(httpPost);
-            HttpEntity entity = response.getEntity();
-            String res = EntityUtils.toString(entity);
-            return "{\"instances\": [" + res + "]}";
+            return getTensorflowParams(sentence, modelParam);
         } else {
             log.error("unknown modelType = {}", modelType);
             throw new AlgorithmException(ResultEnum.UNKNOWN_MODEL_TYPE);
@@ -242,7 +343,7 @@ public class ModelController {
      * @param predictCostMs
      * @return
      */
-    private PredictResultVO getTensorflowDirtywordPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+    private PredictResultVO getTensorflowNormalPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
         // 先将预测结果转化为JsonNode
         JsonNode jsonNode = null;
         try {
@@ -267,7 +368,7 @@ public class ModelController {
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
         predictResultVO.setPredict(isDirtyword >= 0.5 ? 1 : 0);
-        predictResultVO.setPredictString(isDirtyword >= 0.5 ? "脏话" : "非脏话");
+//        predictResultVO.setPredictString(isDirtyword >= 0.5 ? "脏话" : "非脏话");
         predictResultVO.setProbability(isDirtyword);
         predictResultVO.setGetParamsCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
