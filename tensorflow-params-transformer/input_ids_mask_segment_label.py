@@ -1,15 +1,22 @@
-import tensorflow as tf
 import csv
 import os
-import tqdm
-import tokenization
-import collections
+import pickle
+import re
+
+import jieba
+import numpy as np
+import pandas as pd
+import tensorflow as tf
 from flask import Flask
 from flask import jsonify
 from flask import request
-import re
+
+import tokenization
 
 app = Flask(__name__)
+
+global INPUT_QUESTION
+global INPUT_ANSWER
 
 
 class DataProcessor(object):
@@ -216,26 +223,147 @@ def convert_single_example2(ex_index, example, label_list, max_seq_length, token
     }
 
 
+# 中文分词
+def chinese_tokenizer(seq, stop_words):
+    seq = jieba.lcut(seq)
+    seq = filter(lambda x: x not in stop_words, seq)
+    seq = " ".join(seq)
+    return seq
+
+
+# 英文分词
+def tokenizer_fn(iterator):
+    return (x.split(" ") for x in iterator)
+
+
+# 余弦相似度
+def cosine(x, y):
+    """x, y shape (batch_size, vector_size)"""
+    sum_xy = np.matmul(x, y.T)
+    normalize_x = np.expand_dims(np.sqrt(np.sum(x * x, 1)), 1)
+    normalize_y = np.expand_dims(np.sqrt(np.sum(y * y, 1)), 1).T
+
+    cosine_score = np.divide(sum_xy, np.matmul(normalize_x, normalize_y) + 1e-8)
+
+    return cosine_score
+
+
+def pre_processing(stop_words_file, vocab_processor_file):
+
+    global INPUT_QUESTION
+    global INPUT_ANSWER
+
+    # 加载停用词
+    stopwords = pd.read_csv(stop_words_file,
+                            index_col=False,
+                            quoting=3,
+                            sep="\t",
+                            names=['stopword'],
+                            encoding='utf-8')
+    stopwords = stopwords['stopword'].values
+
+    # 加载词典
+    vp = tf.contrib.learn.preprocessing.VocabularyProcessor.restore(
+        vocab_processor_file)
+
+    input_questions = INPUT_QUESTION.split(' ')
+
+    # 构造输入数据
+    answer_token = chinese_tokenizer(INPUT_ANSWER, stopwords)
+    answer_len = [len(answer_token.split(" "))]
+    answer = list(vp.transform([answer_token]))[0].tolist()
+
+    question_token = chinese_tokenizer(input_questions[0], stopwords)
+    question_len = [len(question_token.split(" "))]
+    question = list(vp.transform([question_token]))[0].tolist()
+
+    return question, question_len, answer, answer_len
+
+
+def post_processing(question_tensor, answer_dict_file, answer_matrics_file):
+    input_questions = INPUT_QUESTION.split(' ')
+
+    # 加载答案字典与答案矩阵
+    answer_dict = pickle.load(open(answer_dict_file, mode='rb'))
+    answer_matrics = pickle.load(open(answer_matrics_file, mode='rb'))
+
+    # 处理模型输出
+    question_matrics = np.asarray(question_tensor['predictions'])
+    shape = question_matrics[0].shape[0]
+    question_matrics = np.array(question_matrics).reshape(-1, shape)
+
+    # 计算余弦相似度
+    prob = cosine(question_matrics, answer_matrics)
+
+    # 输出置信度，HDID, 语音编号，问题，答案
+    probs, hdid, voice_number, q, a = [], [], [], [], []
+    for idx, i in enumerate(prob):
+        result = [(x, y) for x, y in zip(i, answer_dict.values())]
+        for p, r in sorted(result, reverse=True)[:100]:
+            probs.append(p)
+            hdid.append(r[0])
+            voice_number.append(r[1])
+            q.append(input_questions[idx])
+            a.append(r[2])
+
+    return probs, hdid, voice_number, q, a
+
+
 @app.route('/getParams', methods=['POST'])
 def getParams():
     sentence = request.form['sentence']
     paramCode = request.form['paramCode']
-    if paramCode == 102:
-        # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点
-        sentence = re.sub('\W', '', sentence)
-    print('sentence:', sentence)
-    example = {
-        'label': '0',
-        'text_a': sentence
-    }
+    other = request.form['other']
 
-    max_seq_length = 128
-    vocab_file = "vocab.txt"
-    tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
-    label_list = ['0']
-    result = convert_single_example2('0', example, label_list, max_seq_length, tokenizer)
+    if int(paramCode) == 104:
+        # 参考ModelParamEnum.java，104是问答分析模型，是另一个独立的处理方式
+        global INPUT_QUESTION
+        global INPUT_ANSWER
+        if other:
+            # 说明是后处理
+            INPUT_QUESTION = sentence
+            probs, hdid, voice_number, q, a = post_processing(eval(other), './data/answer_dict.p', './data/answer_matrics.p')
+            result = []
+            for i in zip(probs, hdid, voice_number, q, a):
+                result.append({
+                    'probs': i[0],
+                    'hdid': i[1],
+                    'voice_number': i[2],
+                    'q': i[3],
+                    'a': i[4]
+                })
+            return jsonify(result)
+        else:
+            # 说明是数据预处理
+            INPUT_QUESTION = sentence
+            INPUT_ANSWER = '增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。'
+            question, question_len, answer, answer_len = pre_processing(
+                './data/stopwords.txt', './data/vocab_processor.bin')
+            result = {
+                'question': question,
+                'question_len': question_len,
+                'answer': answer,
+                'answer_len': answer_len
+            }
+            return jsonify(result)
 
-    return jsonify(result)
+    else:
+        if int(paramCode) == 102:
+            # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点
+            sentence = re.sub('\W', '', sentence)
+        print('sentence:', sentence)
+        example = {
+            'label': '0',
+            'text_a': sentence
+        }
+
+        max_seq_length = 128
+        vocab_file = "vocab.txt"
+        tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
+        label_list = ['0']
+        result = convert_single_example2('0', example, label_list, max_seq_length, tokenizer)
+
+        return jsonify(result)
 
 
 if __name__ == "__main__":
