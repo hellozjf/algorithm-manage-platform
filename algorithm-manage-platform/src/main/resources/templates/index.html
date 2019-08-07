@@ -248,6 +248,21 @@
       <td><input id="testPredictList" class="easyui-textbox" type="text" name="predictList"
                 data-options="multiline:true" style="width: 600px; height: 400px"></td>
     </tr>
+    <tr>
+      <td>前置耗时:</td>
+      <td><input id="testPreCostMs" class="easyui-textbox" type="text" name="preCostMs"
+                 data-options="readonly:true" style="width: 600px"></td>
+    </tr>
+    <tr>
+      <td>预测耗时:</td>
+      <td><input id="testPredictCostMs" class="easyui-textbox" type="text" name="predictCostMs"
+                 data-options="readonly:true" style="width: 600px"></td>
+    </tr>
+    <tr>
+      <td>后置耗时:</td>
+      <td><input id="testPostCostMs" class="easyui-textbox" type="text" name="postCostMs"
+                 data-options="readonly:true" style="width: 600px"></td>
+    </tr>
   </table>
 </div>
 
@@ -367,6 +382,9 @@
           } else {
             $('#trPredictList').css('display', 'none');
           }
+          $('#testPreCostMs').textbox('setValue', json.data.preCostMs);
+          $('#testPostCostMs').textbox('setValue', json.data.postCostMs);
+          $('#testPredictCostMs').textbox('setValue', json.data.predictCostMs);
         } else {
           $.messager.alert({
             title: '预测模型失败',
