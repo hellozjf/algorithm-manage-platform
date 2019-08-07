@@ -16,8 +16,10 @@ public enum ModelParamEnum {
     MLEAP_PHRASE_LIST(3, "切短语", "", ModelTypeEnum.MLEAP.getCode()),
 
     // tensorflow的参数获取方式
-    TENSORFLOW_NORMAL(101, "普通", "", ModelTypeEnum.TENSORFLOW.getCode()),
-    TENSORFLOW_REMOVE_PUNCTUATION(102, "去掉标点", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_DIRTY_WORD(101, "脏话", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_SENTIMENT_ANALYSIS(102, "情感分析", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_IS_TAX_ISSUE(103, "是否税务问题", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_QA(104, "问答匹配", "", ModelTypeEnum.TENSORFLOW.getCode()),
     ;
 
     int code;

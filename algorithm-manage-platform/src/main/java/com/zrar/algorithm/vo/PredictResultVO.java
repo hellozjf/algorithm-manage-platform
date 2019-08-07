@@ -3,6 +3,8 @@ package com.zrar.algorithm.vo;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * @author Jingfeng Zhou
  */
@@ -20,14 +22,19 @@ public class PredictResultVO {
     private JsonNode params;
 
     /**
-     * 获取参数花费的毫秒数
+     * 预测前处理花费的毫秒数（获取向量）
      */
-    private Long getParamsCostMs;
+    private Long preCostMs;
 
     /**
      * 预测花费的毫秒数
      */
     private Long predictCostMs;
+
+    /**
+     * 预测后处理花费的毫秒数
+     */
+    private Long postCostMs;
 
     /**
      * 预测的分类结果
@@ -44,4 +51,8 @@ public class PredictResultVO {
      */
     private Double probability;
 
+    /**
+     * 预测的结果列表
+     */
+    private List<JsonNode> predictList;
 }

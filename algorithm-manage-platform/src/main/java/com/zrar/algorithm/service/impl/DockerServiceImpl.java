@@ -13,6 +13,7 @@ import com.zrar.algorithm.service.DockerService;
 import com.zrar.algorithm.service.FileService;
 import com.zrar.algorithm.service.MLeapService;
 import com.zrar.algorithm.service.RemoteService;
+import com.zrar.algorithm.util.ProcessUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -239,11 +240,11 @@ public class DockerServiceImpl implements DockerService {
                 services.set(modelEntity.getName(), yamlObjectMapper.valueToTree(service));
             } else if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
                 DockerComposeDTO.Service service = new DockerComposeDTO.Service();
-                // 如果本地有tensorflow-serving:1.14.0，那么就用这个优化过的镜像，没有还是使用官方镜像
+                // 如果本地有tensorflow-serving，那么就用这个优化过的镜像，没有还是使用官方镜像
                 if (haveOptimize()) {
                     service.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-serving:1.14.0");
                 } else {
-                    service.setImage(customConfig.getHarborIp() + "/zrar/tensorflow/serving:latest");
+                    service.setImage(customConfig.getHarborIp() + "/zrar/tensorflow/serving:1.14.0");
                 }
                 service.setNetworks(Arrays.asList("algorithm-bridge"));
                 service.setVolumes(Arrays.asList("./models/" + modelEntity.getName() + ":/models/" + modelEntity.getName()));
@@ -258,6 +259,13 @@ public class DockerServiceImpl implements DockerService {
         bridge.setNetworks(Arrays.asList("algorithm-bridge"));
         bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080"));
         services.set("bridge", yamlObjectMapper.valueToTree(bridge));
+
+        // 添加tensorflow-params-transformer的service
+        DockerComposeDTO.Service tensorflowParamsTransformer = new DockerComposeDTO.Service();
+        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.1");
+        tensorflowParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
+        // 默认是5000端口
+        services.set("tensorflow-params-transformer", yamlObjectMapper.valueToTree(tensorflowParamsTransformer));
 
         dockerComposeDTO.setServices(services);
 
@@ -281,13 +289,35 @@ public class DockerServiceImpl implements DockerService {
 
     /**
      * 判断机器上是否有对应的cpu优化版tensorflow-serving
-     * 通过docker images判断
+     * 通过docker images | grep tensorflow-serving判断
+     *
      * @return
      */
     private boolean haveOptimize() {
-        if (active.equalsIgnoreCase("dev")) {
-            return false;
-        } else {
+        try {
+            if (active.equalsIgnoreCase("dev")) {
+                String cmd = remoteService.createExecCommand("docker images | grep tensorflow-serving");
+                Process process = runtime.exec(cmd);
+                String result = ProcessUtils.getInputStreamString(process);
+                log.debug("result = {}", result);
+                if (StringUtils.isEmpty(result)) {
+                    return false;
+                } else {
+                    return true;
+                }
+            } else {
+                String cmd = "docker images | grep tensorflow-serving";
+                Process process = runtime.exec(new String[] {"sh", "-c", cmd});
+                String result = ProcessUtils.getInputStreamString(process);
+                log.debug("result = {}", result);
+                if (StringUtils.isEmpty(result)) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            log.error("e = {}", e);
             return false;
         }
     }

@@ -243,6 +243,11 @@
       <td><input id="testProbability" class="easyui-textbox" type="text" name="probability"
                  data-options="readonly:true" style="width: 600px"></td>
     </tr>
+    <tr id="trPredictList" style="display: none">
+      <td>预测列表</td>
+      <td><input id="testPredictList" class="easyui-textbox" type="text" name="predictList"
+                data-options="multiline:true" style="width: 600px; height: 400px"></td>
+    </tr>
   </table>
 </div>
 
@@ -346,10 +351,22 @@
       dataType: 'json',
       success: function (json) {
         if (json.code === 0) {
-          $('#testWord').textbox('setValue', json.data.word);
+          $('#testWord').textbox('setValue', JSON.stringify(json.data.params));
           $('#testPredictString').textbox('setValue', json.data.predictString);
           $('#testPredict').textbox('setValue', json.data.predict);
           $('#testProbability').textbox('setValue', json.data.probability);
+          if (json.data.predictList) {
+            var len = json.data.predictList.length > 5 ? 5 : json.data.predictList.length;
+            var showText = '';
+            for (var i = 0; i < len; i++) {
+              var p = json.data.predictList[i];
+              showText += p.probs + '\t' + p.hdid + '\t' + p.voice_number + '\t' + p.a + '\n';
+            }
+            $('#testPredictList').textbox('setValue', showText);
+            $('#trPredictList').css('display', '');
+          } else {
+            $('#trPredictList').css('display', 'none');
+          }
         } else {
           $.messager.alert({
             title: '预测模型失败',

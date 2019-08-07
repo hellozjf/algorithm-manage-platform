@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.zrar</groupId>
     <artifactId>algorithm-manage-platform</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <name>algorithm-manage-platform</name>
     <description>Demo project for Spring Boot</description>
 
@@ -75,6 +75,12 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.tensorflow/tensorflow -->
+        <dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow</artifactId>
+            <version>1.14.0</version>
+        </dependency>
 
     </dependencies>
 
@@ -83,6 +89,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <includeSystemScope>true</includeSystemScope>
+                </configuration>
             </plugin>
         </plugins>
     </build>

@@ -19,13 +19,17 @@ import com.zrar.algorithm.util.WordUtils;
 import com.zrar.algorithm.vo.PredictResultVO;
 import com.zrar.algorithm.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -135,14 +139,24 @@ public class ModelController {
                 throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), e.getMessage());
             }
 
-            if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_NORMAL.getCode()) {
+            if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
                 // 脏话模型的结果
-                return ResultUtils.success(getTensorflowNormalPredictResultVO(ps, sentence, params,
+                return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_REMOVE_PUNCTUATION.getCode()) {
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
                 // 情感分析的结果
                 return ResultUtils.success(getTensorflowSentimentAnalysisPredictResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode()) {
+                // 是否税务问题模型的结果
+                return ResultUtils.success(getTensorflowIsTaxIssuePredictResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_QA.getCode()) {
+                // 是否是问答模型的结果
+                return ResultUtils.success(getTensorflowQAPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             }
@@ -171,18 +185,40 @@ public class ModelController {
         return wordCut;
     }
 
+    private String getRawPythonTensorflowParams(String sentence, int paramCode, String other) {
+        try {
+            URI uri = new URIBuilder()
+                    .setScheme("http")
+                    .setHost(customConfig.getBridgeIp())
+                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/params/transformer")
+                    .build();
+            HttpPost httpPost = new HttpPost(uri);
+            List<NameValuePair> formparams = new ArrayList<>();
+            formparams.add(new BasicNameValuePair("sentence", sentence));
+            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(paramCode)));
+            formparams.add(new BasicNameValuePair("other", other));
+            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
+            httpPost.setEntity(formEntity);
+
+            CloseableHttpResponse response = httpClient.execute(httpPost);
+            HttpEntity entity = response.getEntity();
+            String res = EntityUtils.toString(entity);
+            return res;
+        } catch (Exception e) {
+            log.error("e = {}", e);
+            return null;
+        }
+    }
+
     /**
-     * 获取tensorflow向量
+     * 通过Java获取Tensorflow的向量
      * @param sentence
-     * @param paramCode
      * @return
      */
-    @GetMapping("/getRawTensorflowParams")
-    public String getRawTensorflowParams(String sentence, int paramCode) {
-        if (paramCode == ModelParamEnum.TENSORFLOW_NORMAL.getCode()) {
-            // 啥都不处理
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_REMOVE_PUNCTUATION.getCode()) {
-            // 替换掉标点符号
+    private String getRawJavaTensorflowParams(String sentence, int paramCode) {
+
+        if (paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            // 情感分析，替换掉标点符号
             sentence.replaceAll("\\W", "");
         }
 
@@ -258,6 +294,28 @@ public class ModelController {
             log.error("e = {}", e);
             return "";
         }
+    }
+
+    /**
+     * 获取tensorflow向量
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    @GetMapping("/getRawTensorflowParams")
+    public String getRawTensorflowParams(String sentence, int paramCode) {
+        if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
+            paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
+            paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            return getRawJavaTensorflowParams(sentence, paramCode);
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_QA.getCode()) {
+            // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
+            // 其中预处理这边有个tf.contrib.learn.preprocessing.VocabularyProcessor.restore，我找不到对应的Java实现，所以只能靠Python实现
+            return getRawPythonTensorflowParams(sentence, paramCode, "");
+        }
+
+        log.error("unknown paramCode = {}", paramCode);
+        return null;
     }
 
     /**
@@ -343,7 +401,7 @@ public class ModelController {
      * @param predictCostMs
      * @return
      */
-    private PredictResultVO getTensorflowNormalPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+    private PredictResultVO getTensorflowDirtywordPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
         // 先将预测结果转化为JsonNode
         JsonNode jsonNode = null;
         try {
@@ -368,10 +426,107 @@ public class ModelController {
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
         predictResultVO.setPredict(isDirtyword >= 0.5 ? 1 : 0);
-//        predictResultVO.setPredictString(isDirtyword >= 0.5 ? "脏话" : "非脏话");
+        predictResultVO.setPredictString(isDirtyword >= 0.5 ? "脏话" : "非脏话");
         predictResultVO.setProbability(isDirtyword);
-        predictResultVO.setGetParamsCostMs(getParamsCostMs);
+        predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的tensorflow是否税务问题预测结果VO
+     *
+     * @param ps
+     * @param sentence
+     * @param params
+     * @param getParamsCostMs
+     * @param predictCostMs
+     * @return
+     */
+    private PredictResultVO getTensorflowIsTaxIssuePredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        ArrayNode arrayNode1 = (ArrayNode) arrayNode.get(0);
+        double isTaxIssue = arrayNode1.get(1).asDouble();
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredict(isTaxIssue >= 0.5 ? 1 : 0);
+        predictResultVO.setPredictString(isTaxIssue >= 0.5 ? "税务问题" : "非税务问题");
+        predictResultVO.setProbability(isTaxIssue);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的tensorflow问答模型预测结果VO
+     *
+     * @param ps                    喂给tensorflow模型后预测的结果
+     * @param sentence              原始问题
+     * @param params                原始问题的预处理结果
+     * @param getParamsCostMs       预处理耗费的时间
+     * @param predictCostMs         预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowQAPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 首先拿着ps去查询
+        long beforePost = System.currentTimeMillis();
+        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_QA.getCode(), ps);
+        long afterPost = System.currentTimeMillis();
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        ArrayNode arrayNode = null;
+        try {
+            arrayNode = (ArrayNode) objectMapper.readTree(result);
+            if (arrayNode.size() > 0) {
+                jsonNode = arrayNode.get(0);
+            }
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredict(null);
+        predictResultVO.setPredictString(jsonNode.get("a").asText());
+        predictResultVO.setProbability(jsonNode.get("probs").asDouble());
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        predictResultVO.setPostCostMs(afterPost - beforePost);
+
+        // 将arrayNode转化为List<JsonNode>
+        List<JsonNode> jsonNodeList = new ArrayList<>();
+        for (JsonNode node : arrayNode) {
+            jsonNodeList.add(node);
+        }
+        predictResultVO.setPredictList(jsonNodeList);
         return predictResultVO;
     }
 
@@ -413,7 +568,7 @@ public class ModelController {
         predictResultVO.setPredict(r0 > 0.8 ? 0 : 1);
         predictResultVO.setPredictString("");
         predictResultVO.setProbability(r0 > 0.8 ? r0 : r1);
-        predictResultVO.setGetParamsCostMs(getParamsCostMs);
+        predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
         return predictResultVO;
     }
@@ -486,7 +641,7 @@ public class ModelController {
             predictResultVO.setPredict(predict);
             predictResultVO.setPredictString(predictString);
             predictResultVO.setProbability(predictProbability);
-            predictResultVO.setGetParamsCostMs(getParamsCostMs);
+            predictResultVO.setPreCostMs(getParamsCostMs);
             predictResultVO.setPredictCostMs(predictCostMs);
         }
 
