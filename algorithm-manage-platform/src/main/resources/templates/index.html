@@ -219,22 +219,17 @@
   <table cellpadding="5">
     <tr>
       <td>测试文本:</td>
-      <td><input id="testRaw" class="easyui-textbox" name="raw" data-options="multiline:true"
-                 style="height:160px; width:600px"></td>
+      <td><input id="testRaw" class="easyui-textbox" name="raw"
+                 style="width:600px"></td>
       <td><a href="#" class="easyui-linkbutton" onclick="test()">测试</a></td>
     </tr>
     <tr>
-      <td>参数结果:</td>
-      <td><input id="testWord" class="easyui-textbox" type="text" name="word"
-                 data-options="multiline:true,readonly:true" style="height:160px; width:600px"></td>
-    </tr>
-    <tr>
-      <td>分类结果:</td>
+      <td>预测结果:</td>
       <td><input id="testPredictString" class="easyui-textbox" type="text" name="predictString"
                  data-options="readonly:true" style="width: 600px"></td>
     </tr>
-    <tr>
-      <td>分类类别:</td>
+    <tr id="trPredict">
+      <td>预测类别:</td>
       <td><input id="testPredict" class="easyui-textbox" type="text" name="predict" data-options="readonly:true"
                  style="width: 600px"></td>
     </tr>
@@ -245,8 +240,20 @@
     </tr>
     <tr id="trPredictList" style="display: none">
       <td>预测列表</td>
-      <td><input id="testPredictList" class="easyui-textbox" type="text" name="predictList"
-                data-options="multiline:true" style="width: 600px; height: 400px"></td>
+      <!--<td><input id="testPredictList" class="easyui-textbox" type="text" name="predictList"-->
+      <!--data-options="multiline:true" style="width: 600px; height: 400px"></td>-->
+      <td>
+        <table id="testPredictList" class="easyui-datagrid" style="width: 600px; height: 250px" data-options="nowrap: false">
+          <thead>
+          <tr>
+            <th data-options="field:'probs',width:100">置信度</th>
+            <th data-options="field:'hdid',width:100">ID</th>
+            <th data-options="field:'voice_number',width:90">ASR编号</th>
+            <th data-options="field:'a',width:300">回答</th>
+          </tr>
+          </thead>
+        </table>
+      </td>
     </tr>
     <tr>
       <td>前置耗时:</td>
@@ -262,6 +269,11 @@
       <td>后置耗时:</td>
       <td><input id="testPostCostMs" class="easyui-textbox" type="text" name="postCostMs"
                  data-options="readonly:true" style="width: 600px"></td>
+    </tr>
+    <tr>
+      <td>参数结果:</td>
+      <td><input id="testWord" class="easyui-textbox" type="text" name="word"
+                 data-options="multiline:true,readonly:true" style="height:160px; width:600px"></td>
     </tr>
   </table>
 </div>
@@ -372,15 +384,33 @@
           $('#testProbability').textbox('setValue', json.data.probability);
           if (json.data.predictList) {
             var len = json.data.predictList.length > 5 ? 5 : json.data.predictList.length;
-            var showText = '';
+
+            // 要先将datagrid显示出来，再加数据才能看到数据
+            $('#trPredictList').css('display', '');
+            $('#trPredict').css('display', 'none');
+
+            // 首先删除原有的数据
+            var rows = $('#testPredictList').datagrid('getRows');
+            for (var i = 0; i < rows.length; i++) {
+              $('#testPredictList').datagrid('deleteRow', 0);
+            }
+
             for (var i = 0; i < len; i++) {
               var p = json.data.predictList[i];
-              showText += p.probs + '\t' + p.hdid + '\t' + p.voice_number + '\t' + p.a + '\n';
+              var row = {
+                probs: p.probs,
+                hdid: p.hdid,
+                voice_number: p.voice_number,
+                a: p.a
+              };
+              $('#testPredictList').datagrid('insertRow', {
+                index: i,
+                row: row
+              });
             }
-            $('#testPredictList').textbox('setValue', showText);
-            $('#trPredictList').css('display', '');
           } else {
             $('#trPredictList').css('display', 'none');
+            $('#trPredict').css('display', '');
           }
           $('#testPreCostMs').textbox('setValue', json.data.preCostMs);
           $('#testPostCostMs').textbox('setValue', json.data.postCostMs);
@@ -508,7 +538,7 @@
     });
   }
 
-  $(function(){
+  $(function () {
     $.messager.progress({
       title: '提示',
       msg: '服务启动中',
