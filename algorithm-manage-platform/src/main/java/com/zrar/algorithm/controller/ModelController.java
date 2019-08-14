@@ -12,7 +12,8 @@ import com.zrar.algorithm.domain.ModelEntity;
 import com.zrar.algorithm.dto.Indexes;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.ModelRepository;
-import com.zrar.algorithm.util.DictMapUtils;
+import com.zrar.algorithm.service.DictMapService;
+import com.zrar.algorithm.service.StopWordService;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
 import com.zrar.algorithm.util.WordUtils;
@@ -38,10 +39,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -65,6 +63,12 @@ public class ModelController {
 
     @Autowired
     private CloseableHttpClient httpClient;
+
+    @Autowired
+    private DictMapService dictMapService;
+
+    @Autowired
+    private StopWordService stopWordService;
 
     /**
      * 用模型预测sentence，预测分为两个步骤，第一步获取参数，第二步使用参数预测结果
@@ -211,6 +215,73 @@ public class ModelController {
     }
 
     /**
+     * 通过Java获取问答模型Tensorflow前处理后的参数
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    private String getRawJavaQaTensorflowParams(String sentence, int paramCode) {
+
+        // 最大词长度120
+        int maxLength = 120;
+
+        // 加载停用词
+        List<String> stopWordList = stopWordService.getStopWordByPath("static/tensorflow/qa/stopwords.txt");
+
+        // 加载词典
+        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/qa/vocabulary.txt");
+
+        // 将答案“增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。”进行切词，并过滤掉其中的停用词，并将切词转向量
+        String answerString = "增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。";
+        List<String> answerStringList = WordUtils.getWordCutList(answerString, "").stream()
+                .filter(wordCut -> !stopWordList.contains(wordCut))
+                .collect(Collectors.toList());
+        log.debug("{}", answerStringList);
+        List<Integer> answer = answerStringList.stream().map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
+                .collect(Collectors.toList());
+
+        // 获取答案切词长度，并补足或截断长度
+        int answerLen = answer.size();
+        answer = fillLength(maxLength, answer, answerLen);
+
+        // 将问题也进行切词，并过滤掉其中的停用词，结果以空格分隔
+        List<Integer> question = WordUtils.getWordCutList(sentence, "").stream()
+                .filter(wordCut -> !stopWordList.contains(wordCut))
+                .map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
+                .collect(Collectors.toList());
+
+        // 获取问题切词长度，并补足或截断长度
+        int questionLen = question.size();
+        question = fillLength(maxLength, question, questionLen);
+
+        // 返回{question:[], question_len:[], answer:[], answer_len:[]}
+        Map<String, Object> map = new HashMap<>();
+        map.put("question", question);
+        map.put("question_len", Arrays.asList(questionLen));
+        map.put("answer", answer);
+        map.put("answer_len", Arrays.asList(answerLen));
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+    }
+
+    private List<Integer> fillLength(int maxLength, List<Integer> answer, int answerLen) {
+        if (answerLen < maxLength) {
+            // 不足最大长度就补零
+            for (int i = answerLen; i < maxLength; i++) {
+                answer.add(0);
+            }
+        } else if (answerLen > maxLength) {
+            // 大于最大长度就截断
+            answer = answer.subList(0, maxLength);
+        }
+        return answer;
+    }
+
+    /**
      * 通过Java获取Tensorflow的向量
      * @param sentence
      * @return
@@ -249,7 +320,7 @@ public class ModelController {
         }
         wordList.add("[SEP]");
 
-        Map<String, Integer> dictMap = DictMapUtils.getDictMap();
+        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
         List<Integer> integerList = wordList.stream().map(word -> {
             Integer integer = dictMap.get(word);
             if (integer == null) {
@@ -310,8 +381,7 @@ public class ModelController {
             return getRawJavaTensorflowParams(sentence, paramCode);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_QA.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
-            // 其中预处理这边有个tf.contrib.learn.preprocessing.VocabularyProcessor.restore，我找不到对应的Java实现，所以只能靠Python实现
-            return getRawPythonTensorflowParams(sentence, paramCode, "");
+            return getRawJavaQaTensorflowParams(sentence, paramCode);
         }
 
         log.error("unknown paramCode = {}", paramCode);

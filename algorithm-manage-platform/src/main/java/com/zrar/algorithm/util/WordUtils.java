@@ -5,6 +5,7 @@ import com.hankcs.hanlp.seg.common.Term;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -46,6 +47,32 @@ public class WordUtils {
         } else {
             return "null";
         }
+    }
+
+    /**
+     * 切词方法，仅保留税务专有词
+     * @param lineObject 需要分词的句子
+     * @param saveNature 词性，如果为null表示不筛选词性
+     */
+    public static List<String> getWordCutList(Object lineObject,Object saveNature) {
+        List<String> wordCutList = new ArrayList<>();
+        if (StringUtils.isEmpty(lineObject)) {
+            return wordCutList;
+        }
+        String line = lineObject.toString().toUpperCase();
+        List<Term> termList = HanLP.segment(line);
+        for (Term i : termList) {
+            // 这里可以打印i看看有哪些词性
+            String word = i.word;
+            String nature = i.nature.toString();
+            // 如果saveNature==null或空字符串，表示不筛选词性，直接加进来
+            // 如果saveNature!=null，表示需要筛选词性，要判断这是不是我需要的词性，是才加进来
+            if (StringUtils.isEmpty(saveNature) || nature.contains(saveNature.toString())) {
+                //词性为vswzyc（即税务专有词）的分词结果保留
+                wordCutList.add(word);
+            }
+        }
+        return wordCutList;
     }
 
     /**

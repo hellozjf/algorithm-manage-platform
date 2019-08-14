@@ -29,6 +29,7 @@ public enum ResultEnum {
     UNKNOWN_MODEL_TYPE(18, "未知的模型类型"),
     CMD_ERROR(19, "命令错误"),
     FORM_ERROR(20, "表单错误"),
+    LOAD_STOP_WORD_ERROR(21, "加载停用词失败"),
     ;
 
     Integer code;

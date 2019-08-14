@@ -4,13 +4,15 @@
 
 ```
 .
-├── algorithm-manage-platform-1.0.2.jar
 ├── clear.sh
 ├── config.txt
-├── README.md
+├── jar
+│   ├── algorithm-manage-platform-1.0.0.jar
+│   ├── algorithm-manage-platform-1.0.1.jar
+│   ├── algorithm-manage-platform-1.0.2.jar
+│   └── algorithm-manage-platform-1.0.3.jar
 ├── start.sh
 └── stop.sh
-
 ```
 
 
@@ -22,8 +24,8 @@
 ```
 harbor=192.168.2.150
 port=8081
-version=1.0.2
-
+bridgePort=8084
+version=1.0.3
 ```
 
 然后运行启动脚本
@@ -49,6 +51,10 @@ version=1.0.2
 
 
 # 版本信息
+
+## 1.0.4
+
+将tensorflow问答匹配模型的前处理步骤，从python转化为java，但是感觉效果并不好。java的hanlp和python的解霸切出来的词并不一样，而且速度也只是从几十毫秒缩短到几毫秒而已
 
 ## 1.0.3
 
