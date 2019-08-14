@@ -20,6 +20,7 @@ public enum ModelParamEnum {
     TENSORFLOW_SENTIMENT_ANALYSIS(102, "情感分析", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_IS_TAX_ISSUE(103, "是否税务问题", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_QA(104, "问答匹配", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_SHEBAO(105, "社保模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     ;
 
     int code;

@@ -351,6 +351,31 @@ def getParams():
         if int(paramCode) == 102:
             # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点
             sentence = re.sub('\W', '', sentence)
+        elif int(paramCode) == 105:
+            # 参考ModelParamEnum.java，105是社保模型，要去停词
+            with open('./data/stopword/stopWord.txt', 'r', encoding='utf_8_sig') as f:
+                stopword = [i.strip() for i in f.readlines()]
+                word = []
+                for i in jieba.lcut(sentence):
+                    if i in stopword:
+                        continue
+                    word.append(i)
+                sentence = ''.join(word)
+
+                print('sentence:', sentence)
+                example = {
+                    'label': '0',
+                    'text_a': sentence
+                }
+
+                max_seq_length = 512
+                vocab_file = "vocab.txt"
+                tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
+                label_list = ['0']
+                result = convert_single_example2('0', example, label_list, max_seq_length, tokenizer)
+
+                return jsonify(result)
+
         print('sentence:', sentence)
         example = {
             'label': '0',
