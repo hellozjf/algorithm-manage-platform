@@ -6,3 +6,4 @@
 /.idea/vcs.xml
 /.idea/workspace.xml
 /__pycache__/tokenization.cpython-36.pyc
+.idea/

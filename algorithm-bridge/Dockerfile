@@ -1,4 +1,4 @@
-FROM openjdk:8-jre-alpine
+FROM 192.168.2.150/zrar/openjdk:8-jre-alpine
 MAINTAINER hellozjf <908686171@qq.com>
 
 # Add the service itself
