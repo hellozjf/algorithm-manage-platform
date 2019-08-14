@@ -1,1 +1,1 @@
-docker build -t 192.168.2.150/zrar/tensorflow-dirtyword-params-transformer:1.0.0 .
+docker build -t 192.168.2.150/zrar/tensorflow-dirtyword-params-transformer:1.0.1 .

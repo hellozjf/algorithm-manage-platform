@@ -1,5 +1,11 @@
-FROM python:3.7.4-slim
+FROM python:3.7.4
+
+ENV http_proxy http://192.168.2.149:8118
+ENV https_proxy http://192.168.2.149:8118
+
 MAINTAINER hellozjf
+RUN apt-get update
+RUN apt-get install -y build-essential
 RUN pip install jieba numpy pandas tensorflow tqdm tokenization flask
 EXPOSE 5000
 

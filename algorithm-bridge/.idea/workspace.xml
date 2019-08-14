@@ -2,12 +2,47 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="10a5d93a-e7df-47ce-b8e6-41cfd39b98a2" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/../tensorflow-params-transformer/ModelParamEnum.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/service/impl/DockerServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/service/impl/DockerServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/resources/application-dev.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/resources/application-dev.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/resources/application-prod.properties" beforeDir="false" afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/resources/application-prod.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../tensorflow-params-transformer/input_ids_mask_segment_label.py" beforeDir="false" afterPath="$PROJECT_DIR$/../tensorflow-params-transformer/input_ids_mask_segment_label.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/lib/hanlp-portable-1.6.8.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/script/clear.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/script/config.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/script/start.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/script/stop.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/util/DictMapUtils.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/util/WordUtils.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/resources/vocab.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../mleap-params-transformer/src/main/resources/vocab.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../algorithm-manage-platform/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../algorithm-manage-platform/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/constant/ModelParamEnum.java" beforeDir="false" afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/constant/ModelParamEnum.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/controller/ModelController.java" beforeDir="false" afterPath="$PROJECT_DIR$/../algorithm-manage-platform/src/main/java/com/zrar/algorithm/controller/ModelController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/env.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/jest/cssTransform.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/jest/fileTransform.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/modules.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/paths.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/pnpTs.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/webpack.config.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/config/webpackDevServer.config.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/package-lock.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/package.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/public/favicon.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/public/index.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/public/manifest.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/scripts/build.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/scripts/start.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/scripts/test.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/App.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/App.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/App.test.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/index.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/logo.svg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/pages/demo/Child.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/pages/demo/Life.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/pages/demo/index.less" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../imoocmanager/src/serviceWorker.js" beforeDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -20,10 +55,10 @@
     <session id="1128655575">
       <usages-collector id="statistics.lifecycle.project">
         <counts>
-          <entry key="project.closed" value="2" />
-          <entry key="project.open.time.1" value="1" />
+          <entry key="project.closed" value="3" />
+          <entry key="project.open.time.1" value="2" />
           <entry key="project.open.time.2" value="1" />
-          <entry key="project.opened" value="2" />
+          <entry key="project.opened" value="3" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
@@ -51,12 +86,12 @@
     </session>
   </component>
   <component name="FileEditorManager">
-    <leaf>
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/zrar/algorithmbridge/controller/BridgeController.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-1701">
-              <caret line="67" selection-start-line="67" selection-end-line="67" />
+            <state relative-caret-position="135">
+              <caret line="63" column="51" selection-start-line="63" selection-start-column="21" selection-end-line="63" selection-end-column="51" />
             </state>
           </provider>
         </entry>
@@ -116,6 +151,8 @@
     </navigator>
     <panes>
       <pane id="Scope" />
+      <pane id="AndroidView" />
+      <pane id="PackagesPane" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -183,8 +220,6 @@
           <select />
         </subPane>
       </pane>
-      <pane id="AndroidView" />
-      <pane id="PackagesPane" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -298,6 +333,7 @@
       <updated>1562760139517</updated>
       <workItem from="1562760140919" duration="1314000" />
       <workItem from="1563426087578" duration="2479000" />
+      <workItem from="1564477113840" duration="770000" />
     </task>
     <task id="LOCAL-00001" summary="只使用一个tensorflow_params_transformer">
       <created>1563429913463</created>
@@ -310,12 +346,13 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="3793000" />
+    <option name="totallyTimeSpent" value="4563000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-8" y="-8" width="1616" height="876" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.24485861" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.24807198" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Designer" order="2" />
       <window_info id="Image Layers" order="3" />
@@ -364,8 +401,8 @@
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/src/main/java/com/zrar/algorithmbridge/controller/BridgeController.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1701">
-          <caret line="67" selection-start-line="67" selection-end-line="67" />
+        <state relative-caret-position="135">
+          <caret line="63" column="51" selection-start-line="63" selection-start-column="21" selection-end-line="63" selection-end-column="51" />
         </state>
       </provider>
     </entry>
