@@ -1,4 +1,4 @@
-FROM python:3.7.4
+FROM 192.168.2.150/zrar/python:3.7.4-slim
 
 ENV http_proxy http://192.168.2.149:8118
 ENV https_proxy http://192.168.2.149:8118

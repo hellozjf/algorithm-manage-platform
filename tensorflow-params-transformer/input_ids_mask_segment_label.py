@@ -351,8 +351,10 @@ def getParams():
         if int(paramCode) == 102:
             # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点
             sentence = re.sub('\W', '', sentence)
-        elif int(paramCode) == 105:
-            # 参考ModelParamEnum.java，105是社保模型，要去停词
+        elif int(paramCode) == 105 or int(paramCode) == 106:
+            # 参考ModelParamEnum.java
+            # 105是社保模型，要去停词
+            # 106是三分类模型，要去停词
             with open('./data/stopword/stopWord.txt', 'r', encoding='utf_8_sig') as f:
                 stopword = [i.strip() for i in f.readlines()]
                 word = []
@@ -368,7 +370,10 @@ def getParams():
                     'text_a': sentence
                 }
 
-                max_seq_length = 512
+                if int(paramCode) == 105:
+                    max_seq_length = 512
+                elif int(paramCode) == 106:
+                    max_seq_length = 300
                 vocab_file = "vocab.txt"
                 tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
                 label_list = ['0']
