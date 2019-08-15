@@ -20,7 +20,7 @@ public class WordUtils {
     public static final String SWZYC = "vswzyc";
 
     /**
-     * 切词方法，仅保留税务专有词
+     * 切词方法，仅保留税务专有词，切出来的词最后以空格分隔
      * @param lineObject 需要分词的句子
      * @param saveNature 词性，如果为null表示不筛选词性
      */

@@ -14,6 +14,7 @@ import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.ModelRepository;
 import com.zrar.algorithm.service.DictMapService;
 import com.zrar.algorithm.service.StopWordService;
+import com.zrar.algorithm.util.JiebaUtils;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
 import com.zrar.algorithm.util.WordUtils;
@@ -229,6 +230,27 @@ public class ModelController {
     }
 
     /**
+     * 通过Java获取社保模型Tensorflow前处理后的参数
+     * @param sentence
+     * @param paramCode
+     * @return
+     */
+    private String getRawJavaShebaoTensorflowParams(String sentence, int paramCode, int maxLength) {
+
+        // 加载停用词
+        List<String> stopWordList = stopWordService.getStopWordByPath("static/tensorflow/shebao/stopWord.txt");
+
+        // 过滤停用词
+        String filterStopWords = JiebaUtils.lcut(sentence).stream()
+                .filter(wordCut -> !stopWordList.contains(wordCut))
+                .collect(Collectors.joining());
+        log.debug("sentence={}", sentence);
+        log.debug("filterStopWords={}", filterStopWords);
+
+        return getRawJavaTensorflowParams(filterStopWords, paramCode, maxLength);
+    }
+
+    /**
      * 通过Java获取问答模型Tensorflow前处理后的参数
      * @param sentence
      * @param paramCode
@@ -296,12 +318,13 @@ public class ModelController {
     }
 
     /**
-     * 通过Java获取Tensorflow的向量
+     * 将句子转成字，然后转换为向量
      * @param sentence
+     * @param paramCode
+     * @param maxSeqLength
      * @return
      */
-    private String getRawJavaTensorflowParams(String sentence, int paramCode) {
-
+    private String getRawJavaTensorflowParams(String sentence, int paramCode, int maxSeqLength) {
         if (paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
             // 情感分析，替换掉标点符号
             sentence.replaceAll("\\W", "");
@@ -344,7 +367,6 @@ public class ModelController {
             }
         }).collect(Collectors.toList());
 
-        int maxSeqLength = 128;
         List<Integer> inputIds = new ArrayList<>();
         List<Integer> inputMask = new ArrayList<>();
         List<Integer> segmentIds = new ArrayList<>();
@@ -382,6 +404,15 @@ public class ModelController {
     }
 
     /**
+     * 通过Java获取Tensorflow的向量
+     * @param sentence
+     * @return
+     */
+    private String getRawJavaTensorflowParams(String sentence, int paramCode) {
+        return getRawJavaTensorflowParams(sentence, paramCode, 128);
+    }
+
+    /**
      * 获取tensorflow向量
      * @param sentence
      * @param paramCode
@@ -395,9 +426,12 @@ public class ModelController {
             return getRawJavaTensorflowParams(sentence, paramCode);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_QA.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
-            return getRawJavaQaTensorflowParams(sentence, paramCode);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode() ||
-                    paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
+            return getRawPythonTensorflowParams(sentence, paramCode, "");
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
+            // 社保是512长度
+            return getRawPythonTensorflowParams(sentence, paramCode, "");
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
+            // 三分类是300长度
             return getRawPythonTensorflowParams(sentence, paramCode, "");
         }
 
