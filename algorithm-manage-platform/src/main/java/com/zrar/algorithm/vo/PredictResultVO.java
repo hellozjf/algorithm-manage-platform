@@ -55,4 +55,9 @@ public class PredictResultVO {
      * 预测的结果列表
      */
     private List<JsonNode> predictList;
+
+    /**
+     * docker容器返回的结果
+     */
+    private String dockerResult;
 }

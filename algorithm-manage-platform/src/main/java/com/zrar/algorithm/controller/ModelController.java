@@ -168,6 +168,11 @@ public class ModelController {
                 return ResultUtils.success(getTensorflowSocialSecurityResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
+                // 三分类模型的结果
+                return ResultUtils.success(getTensorflowFirstAllResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
             } else {
                 return ResultUtils.success(getTensorflowResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -391,7 +396,8 @@ public class ModelController {
         } else if (paramCode == ModelParamEnum.TENSORFLOW_QA.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
             return getRawJavaQaTensorflowParams(sentence, paramCode);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode() ||
+                    paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
             return getRawPythonTensorflowParams(sentence, paramCode, "");
         }
 
@@ -632,11 +638,6 @@ public class ModelController {
             throw new AlgorithmException(ResultEnum.JSON_ERROR);
         }
 
-        JsonNode predictions = jsonNode.get("predictions");
-        ArrayNode arrayNode = (ArrayNode) predictions;
-        ArrayNode arrayNode1 = (ArrayNode) arrayNode.get(0);
-        double isTaxIssue = arrayNode1.get(1).asDouble();
-
         JsonNode paramsNode = null;
         try {
             paramsNode = objectMapper.readTree(params);
@@ -646,10 +647,9 @@ public class ModelController {
         PredictResultVO predictResultVO = new PredictResultVO();
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
-        predictResultVO.setPredict(isTaxIssue >= 0.5 ? 1 : 0);
-        predictResultVO.setProbability(isTaxIssue);
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
+        predictResultVO.setDockerResult(ps);
         return predictResultVO;
     }
 
@@ -702,6 +702,57 @@ public class ModelController {
                 break;
             case 4:
                 predictResultVO.setPredictString("其他");
+                break;
+        }
+        predictResultVO.setPredict(value);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的三分类城管社保综合预测结果VO
+     *
+     * @param ps                    喂给tensorflow模型后预测的结果
+     * @param sentence              原始问题
+     * @param params                原始问题的预处理结果
+     * @param getParamsCostMs       预处理耗费的时间
+     * @param predictCostMs         预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowFirstAllResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        int value = arrayNode.get(0).intValue();
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        switch (value) {
+            case 0:
+                predictResultVO.setPredictString("城管");
+                break;
+            case 1:
+                predictResultVO.setPredictString("社保");
+                break;
+            case 2:
+                predictResultVO.setPredictString("综合");
                 break;
         }
         predictResultVO.setPredict(value);
