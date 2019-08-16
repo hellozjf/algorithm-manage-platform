@@ -50,6 +50,14 @@ version=1.0.3
 
 
 
+# postman测试tensorflow
+
+```
+http://192.168.56.102:8084/tensorflow/zonghe/v1/models/zonghe/metadata
+```
+
+
+
 # 版本信息
 
 ## 1.0.5

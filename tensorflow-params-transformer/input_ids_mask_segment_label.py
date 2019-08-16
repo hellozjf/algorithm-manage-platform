@@ -351,7 +351,7 @@ def getParams():
         if int(paramCode) == 102:
             # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点
             sentence = re.sub('\W', '', sentence)
-        elif int(paramCode) == 105 or int(paramCode) == 106:
+        elif int(paramCode) == 105 or int(paramCode) == 106 or int(paramCode) == 107 or int(paramCode) == 108:
             # 参考ModelParamEnum.java
             # 105是社保模型，要去停词
             # 106是三分类模型，要去停词
@@ -372,7 +372,7 @@ def getParams():
 
                 if int(paramCode) == 105:
                     max_seq_length = 512
-                elif int(paramCode) == 106:
+                elif int(paramCode) == 106 or int(paramCode) == 107 or int(paramCode) == 108:
                     max_seq_length = 300
                 vocab_file = "vocab.txt"
                 tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)

@@ -22,6 +22,8 @@ public enum ModelParamEnum {
     TENSORFLOW_QA(104, "问答匹配模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_SHEBAO(105, "社保模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_FIRSTALL(106, "三分类模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_SYNTHESIS(107, "综合模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_CITY_MANAGEMENT(108, "城管模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     ;
 
     int code;

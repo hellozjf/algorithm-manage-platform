@@ -174,6 +174,16 @@ public class ModelController {
                 return ResultUtils.success(getTensorflowFirstAllResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode()) {
+                // 综合模型
+                return ResultUtils.success(getTensorflowSynthesisResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
+                // 城管模型
+                return ResultUtils.success(getTensorflowCityManagementResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
             } else {
                 return ResultUtils.success(getTensorflowResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -430,8 +440,10 @@ public class ModelController {
         } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
             // 社保是512长度
             return getRawPythonTensorflowParams(sentence, paramCode, "");
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
-            // 三分类是300长度
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode() ||
+                paramCode == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode() ||
+                paramCode == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
+            // 三分类和综合模型都是300长度
             return getRawPythonTensorflowParams(sentence, paramCode, "");
         }
 
@@ -551,6 +563,7 @@ public class ModelController {
         predictResultVO.setProbability(isDirtyword);
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
+        predictResultVO.setDockerResult(ps);
         return predictResultVO;
     }
 
@@ -787,6 +800,141 @@ public class ModelController {
                 break;
             case 2:
                 predictResultVO.setPredictString("综合");
+                break;
+        }
+        predictResultVO.setPredict(value);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的综合模型预测结果VO
+     *
+     * @param ps                    喂给tensorflow模型后预测的结果
+     * @param sentence              原始问题
+     * @param params                原始问题的预处理结果
+     * @param getParamsCostMs       预处理耗费的时间
+     * @param predictCostMs         预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowSynthesisResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        int value = arrayNode.get(0).intValue();
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        switch (value) {
+            case 0:
+                predictResultVO.setPredictString("工商管理类");
+                break;
+            case 1:
+                predictResultVO.setPredictString("城建土地规划类");
+                break;
+            case 2:
+                predictResultVO.setPredictString("当前热点类");
+                break;
+            case 3:
+                predictResultVO.setPredictString("劳动人事类");
+                break;
+            case 4:
+                predictResultVO.setPredictString("城市管理类");
+                break;
+            case 5:
+                predictResultVO.setPredictString("物价财税类");
+                break;
+            case 6:
+                predictResultVO.setPredictString("旅游园林类");
+                break;
+            case 7:
+                predictResultVO.setPredictString("环境保护类");
+                break;
+            case 8:
+                predictResultVO.setPredictString("房产管理类");
+                break;
+            case 9:
+                predictResultVO.setPredictString("交通秩序类");
+                break;
+            case 10:
+                predictResultVO.setPredictString("农林水利类");
+                break;
+        }
+        predictResultVO.setPredict(value);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的城管模型预测结果VO
+     *
+     * @param ps                    喂给tensorflow模型后预测的结果
+     * @param sentence              原始问题
+     * @param params                原始问题的预处理结果
+     * @param getParamsCostMs       预处理耗费的时间
+     * @param predictCostMs         预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowCityManagementResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        int value = arrayNode.get(0).intValue();
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        switch (value) {
+            case 0:
+                predictResultVO.setPredictString("施工");
+                break;
+            case 1:
+                predictResultVO.setPredictString("城市规划");
+                break;
+            case 2:
+                predictResultVO.setPredictString("垃圾");
+                break;
+            case 3:
+                predictResultVO.setPredictString("绿化");
+                break;
+            case 4:
+                predictResultVO.setPredictString("犬类安全");
+                break;
+            case 5:
+                predictResultVO.setPredictString("停车收费");
                 break;
         }
         predictResultVO.setPredict(value);
