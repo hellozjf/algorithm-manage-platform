@@ -15,8 +15,10 @@ import org.tensorflow.SavedModelBundle;
 import org.tensorflow.Session;
 import org.tensorflow.Tensor;
 
+import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 import java.nio.LongBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -100,6 +102,29 @@ public class AlgorithmManagePlatformApplicationTests {
         FloatBuffer floatBuffer = FloatBuffer.wrap(result);
         y.writeTo(floatBuffer);
         log.debug("result[0] = {}, result[1] = {}", result[0], result[1]);
+    }
+
+    @Test
+    public void loadQa() throws Exception {
+        //导入图
+        Resource resource = new ClassPathResource("static/tensorflow/modelPb/qa/1564561998");
+        SavedModelBundle savedModelBundle = SavedModelBundle.load(resource.getFile().getAbsolutePath(), "serve");
+        long[] answer = new long[] {2,5,1717,1905,3,1030,192,269,78,976,530,6,192,530,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+        long[] question = new long[] {2,88,25,718,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+        long[] answerLen = new long[] {14};
+        long[] questionLen = new long[] {4};
+        long[] shape1 = new long[] {1, 120};
+        long[] shape2 = new long[] {1, 1};
+        Tensor y = savedModelBundle.session().runner()
+                .feed("answer", Tensor.create(shape1, LongBuffer.wrap(answer)))
+                .feed("question", Tensor.create(shape1, LongBuffer.wrap(question)))
+                .feed("answer_len", Tensor.create(shape2, LongBuffer.wrap(answerLen)))
+                .feed("question_len", Tensor.create(shape2, LongBuffer.wrap(questionLen)))
+                .fetch("bilstm/attentive-pooling/Squeeze").run().get(0);
+        double[] result = new double[256];
+        DoubleBuffer doubleBuffer = DoubleBuffer.wrap(result);
+        y.writeTo(doubleBuffer);
+        log.debug("result = {}", Arrays.toString(result));
     }
 
 }
