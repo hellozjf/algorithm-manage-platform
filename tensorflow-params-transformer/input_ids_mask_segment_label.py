@@ -387,7 +387,11 @@ def getParams():
             'text_a': sentence
         }
 
-        max_seq_length = 128
+        if int(paramCode) == 109:
+            # 智能咨询是96位
+            max_seq_length = 96
+        else:
+            max_seq_length = 128
         vocab_file = "vocab.txt"
         tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
         label_list = ['0']
