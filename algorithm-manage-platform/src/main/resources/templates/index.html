@@ -1,11 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<script type="text/javascript" th:inline="javascript">
+  /*<![CDATA[*/
+  ctxPath = /*[[@{/}]]*/ '';
+  /*]]>*/
+</script>
 <head>
   <meta charset="UTF-8">
   <title>算法服务平台</title>
-  <link rel="stylesheet" type="text/css" href="/css/easyui.css">
-  <link rel="stylesheet" type="text/css" href="/css/icon.css">
-  <link rel="stylesheet" type="text/css" href="/css/demo.css">
+  <link rel="stylesheet" type="text/css" th:href="@{/css/easyui.css}">
+  <link rel="stylesheet" type="text/css" th:href="@{/css/icon.css}">
+  <link rel="stylesheet" type="text/css" th:href="@{/css/demo.css}">
 </head>
 <body>
 
@@ -21,7 +26,7 @@
 <table id="datagrid" class="easyui-datagrid" title="模型列表" style="width:100%;height:auto"
        data-options="
 				toolbar: '#toolbar',
-				url: '/web/getAllModelList',
+				url: ctxPath + '/web/getAllModelList',
 				method: 'get',
 				selectOnCheck: true,
 				checkOnSelect: true
@@ -44,7 +49,7 @@
 <div id="addModelDlg" class="easyui-dialog" title="添加模型"
      data-options="iconCls:'icon-save',modal:true,closed:true"
      style="width:400px;">
-  <form id="addModelForm" action="/web/addModel" method="post" enctype="multipart/form-data">
+  <form id="addModelForm" th:action="@{/web/addModel}" method="post" enctype="multipart/form-data">
     <table cellpadding="5">
       <tr>
         <td>模型名称:</td>
@@ -58,7 +63,7 @@
         <td>模型类型:</td>
         <td><select id="addModelFormModelType" class="easyui-combobox" name="type" style="width:200px;"
                     data-options="
-                        url:'/web/getModelTypeList',
+                        url:ctxPath+'/web/getModelTypeList',
 								        method:'get',
                         valueField:'code',
                         textField:'desc',
@@ -66,7 +71,7 @@
                         onSelect: function (rec) {
                           console.debug(rec);
                           $('#addModelFormModelParam').combobox({
-                            url:'/web/getModelParamList?typeCode=' + rec.code,
+                            url:ctxPath+'/web/getModelParamList?typeCode=' + rec.code,
                             method:'get',
                             valueField:'code',
                             textField:'desc',
@@ -127,7 +132,7 @@
 <div id="modifyModelDlg" class="easyui-dialog" title="修改模型"
      data-options="iconCls:'icon-save',modal:true,closed:true"
      style="width:400px;">
-  <form id="modifyModelForm" action="/web/modifyModel" method="post" enctype="multipart/form-data">
+  <form id="modifyModelForm" th:action="@{/web/modifyModel}" method="post" enctype="multipart/form-data">
     <table cellpadding="5">
       <tr style="display: none">
         <td>模型ID:</td>
@@ -147,7 +152,7 @@
         <td>模型类型:</td>
         <td><select id="modifyModelFormModelType" class="easyui-combobox" name="type" style="width:200px;"
                     data-options="
-                        url:'/web/getModelTypeList',
+                        url:ctxPath+'/web/getModelTypeList',
 								        method:'get',
                         valueField:'code',
                         textField:'desc',
@@ -155,7 +160,7 @@
                         onSelect: function (rec) {
                           console.debug(rec);
                           $('#modifyModelFormModelParam').combobox({
-                            url:'/web/getModelParamList?typeCode=' + rec.code,
+                            url:ctxPath+'/web/getModelParamList?typeCode=' + rec.code,
                             method:'get',
                             valueField:'code',
                             textField:'desc',
@@ -278,8 +283,8 @@
   </table>
 </div>
 
-<script type="text/javascript" src="/js/jquery.min.js"></script>
-<script type="text/javascript" src="/js/jquery.easyui.min.js"></script>
+<script type="text/javascript" th:src="@{/js/jquery.min.js}"></script>
+<script type="text/javascript" th:src="@{/js/jquery.easyui.min.js}"></script>
 <script type="text/javascript">
 
   function addModel() {
@@ -291,7 +296,7 @@
     var id = a.attr('rowId');
     $('#modifyModelFormModelId').textbox('setValue', id);
     $.ajax({
-      url: '/web/getModel?id=' + id,
+      url: ctxPath+'/web/getModel?id=' + id,
       method: 'GET',
       dataType: 'json',
       success: function (json) {
@@ -329,7 +334,7 @@
           ids.push(rows[i].id);
         }
         $.ajax({
-          url: '/web/delModel',
+          url: ctxPath+'/web/delModel',
           data: {
             ids: ids.join(',')
           },
@@ -372,7 +377,7 @@
       interval: '1000'
     });
     $.post({
-      url: modelName + '/predict',
+      url: ctxPath + '/' + modelName + '/predict',
       contentType: "application/json",
       data: raw,
       dataType: 'json',
@@ -431,7 +436,7 @@
   function testModel(a) {
     var id = a.attr('rowId');
     $.ajax({
-      url: '/web/getModel?id=' + id,
+      url: ctxPath + '/web/getModel?id=' + id,
       method: 'GET',
       dataType: 'json',
       success: function (json) {
@@ -453,7 +458,7 @@
 
   function downloadModel(a) {
     var id = a.attr('rowId');
-    var url = "/web/downloadModel?id=" + id;
+    var url = ctxPath + "/web/downloadModel?id=" + id;
     window.location.href = url;
   }
 
@@ -468,7 +473,7 @@
         });
         var id = a.attr('rowId');
         $.ajax({
-          url: '/web/restartModel',
+          url: ctxPath + '/web/restartModel',
           method: 'POST',
           data: {
             id: id
@@ -520,7 +525,7 @@
           interval: '1000',
         });
         $.post({
-          url: '/web/reboot',
+          url: ctxPath + '/web/reboot',
           dataType: 'json',
           success: function (data) {
             console.debug(data);
@@ -546,7 +551,7 @@
       interval: '1000',
     });
     $.get({
-      url: 'web/waitForStarted',
+      url: ctxPath + '/web/waitForStarted',
       success: function (e) {
         $.messager.progress('close');
       }
