@@ -144,6 +144,7 @@ public class ModelController {
                 throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), e.getMessage());
             }
 
+            // TODO 每增加一个模型，需要增加一个分支
             if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
                 // 脏话模型的结果
                 return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
@@ -184,6 +185,11 @@ public class ModelController {
                 return ResultUtils.success(getTensorflowCityManagementResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
+                // 智能咨询模型
+                return ResultUtils.success(getTensorflowZnzxParams(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
             } else {
                 return ResultUtils.success(getTensorflowResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -214,7 +220,7 @@ public class ModelController {
         return wordCut;
     }
 
-    private String getRawPythonTensorflowParams(String sentence, int paramCode, String other) {
+    private String getRawPythonTensorflowParams(String sentence, int paramCode, String other, int maxLength) {
         try {
             URI uri = new URIBuilder()
                     .setScheme("http")
@@ -226,6 +232,7 @@ public class ModelController {
             formparams.add(new BasicNameValuePair("sentence", sentence));
             formparams.add(new BasicNameValuePair("paramCode", String.valueOf(paramCode)));
             formparams.add(new BasicNameValuePair("other", other));
+            formparams.add(new BasicNameValuePair("maxLength", String.valueOf(maxLength)));
             UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
             httpPost.setEntity(formEntity);
 
@@ -414,15 +421,6 @@ public class ModelController {
     }
 
     /**
-     * 通过Java获取Tensorflow的向量
-     * @param sentence
-     * @return
-     */
-    private String getRawJavaTensorflowParams(String sentence, int paramCode) {
-        return getRawJavaTensorflowParams(sentence, paramCode, 128);
-    }
-
-    /**
      * 获取tensorflow向量
      * @param sentence
      * @param paramCode
@@ -430,21 +428,25 @@ public class ModelController {
      */
     @GetMapping("/getRawTensorflowParams")
     public String getRawTensorflowParams(String sentence, int paramCode) {
+        // TODO 每增加一个模型，需要添加一段代码逻辑
         if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
             paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
             paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
-            return getRawJavaTensorflowParams(sentence, paramCode);
+            return getRawJavaTensorflowParams(sentence, paramCode, 128);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_QA.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
-            return getRawPythonTensorflowParams(sentence, paramCode, "");
+            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
             // 社保是512长度
-            return getRawPythonTensorflowParams(sentence, paramCode, "");
+            return getRawPythonTensorflowParams(sentence, paramCode, "", 512);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode() ||
                 paramCode == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode() ||
                 paramCode == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
             // 三分类和综合模型都是300长度
-            return getRawPythonTensorflowParams(sentence, paramCode, "");
+            return getRawPythonTensorflowParams(sentence, paramCode, "", 300);
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
+            // 智能咨询模型长度是96
+            return getRawPythonTensorflowParams(sentence, paramCode, "", 96);
         }
 
         log.error("unknown paramCode = {}", paramCode);
@@ -623,7 +625,7 @@ public class ModelController {
 
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
-        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_QA.getCode(), ps);
+        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_QA.getCode(), ps, 120);
         long afterPost = System.currentTimeMillis();
 
         // 先将预测结果转化为JsonNode
@@ -935,6 +937,86 @@ public class ModelController {
                 break;
             case 5:
                 predictResultVO.setPredictString("停车收费");
+                break;
+        }
+        predictResultVO.setPredict(value);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的城管模型预测结果VO
+     *
+     * @param ps                    喂给tensorflow模型后预测的结果
+     * @param sentence              原始问题
+     * @param params                原始问题的预处理结果
+     * @param getParamsCostMs       预处理耗费的时间
+     * @param predictCostMs         预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowZnzxParams(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        arrayNode = (ArrayNode) arrayNode.get(0);
+        double p0 = arrayNode.get(0).doubleValue();
+        double p1 = arrayNode.get(1).doubleValue();
+        double p2 = arrayNode.get(2).doubleValue();
+        double p3 = arrayNode.get(3).doubleValue();
+        double p4 = arrayNode.get(4).doubleValue();
+        int value = 0;
+        double p = p0;
+        if (p1 > p) {
+            value = 1;
+            p = p1;
+        }
+        if (p2 > p) {
+            value = 2;
+            p = p2;
+        }
+        if (p3 > p) {
+            value = 3;
+            p = p3;
+        }
+        if (p4 > p) {
+            value = 4;
+            p = p4;
+        }
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        switch (value) {
+            case 0:
+                predictResultVO.setPredictString("发票查询");
+                break;
+            case 1:
+                predictResultVO.setPredictString("纳税证明");
+                break;
+            case 2:
+                predictResultVO.setPredictString("人工客服");
+                break;
+            case 3:
+                predictResultVO.setPredictString("询问地址");
+                break;
+            case 4:
+                predictResultVO.setPredictString("其他");
                 break;
         }
         predictResultVO.setPredict(value);

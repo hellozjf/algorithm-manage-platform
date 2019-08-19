@@ -262,7 +262,8 @@ public class DockerServiceImpl implements DockerService {
 
         // 添加tensorflow-params-transformer的service
         DockerComposeDTO.Service tensorflowParamsTransformer = new DockerComposeDTO.Service();
-        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.5");
+        // TODO 每添加一个模型，需要修改tensorflow-params-transformer的版本号
+        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.7");
         tensorflowParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
         // 默认是5000端口
         services.set("tensorflow-params-transformer", yamlObjectMapper.valueToTree(tensorflowParamsTransformer));
