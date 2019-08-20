@@ -437,16 +437,13 @@ public class WebController {
             saveFile(multipartFile, file, modelForm);
             // 把记录写到数据库中
             modelEntity = saveToDatabase(modelForm, false, file);
+            // 通过数据库记录生成新的docker-compose.yml文件
+            generateDockerComposeYml();
+            // 让模型对应的docker容器先跑起来
+            createDocker(modelForm.getName());
+            // mleap还要额外让模型上线
+            onlineMLeap(modelForm);
         }
-
-        // 通过数据库记录生成新的docker-compose.yml文件
-        generateDockerComposeYml();
-
-        // 让模型对应的docker容器先跑起来
-        createDocker(modelForm.getName());
-
-        // mleap还要额外让模型上线
-        onlineMLeap(modelForm);
 
         return ResultUtils.success(modelEntity);
     }
