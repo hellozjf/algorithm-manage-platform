@@ -10,6 +10,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ModelParamEnum {
 
+    // TODO 每增加一个模型，需要增加一个获取方式
+
     // mleap相关的切词方式
     MLEAP_CUT_WORD(1, "切词", "", ModelTypeEnum.MLEAP.getCode()),
     MLEAP_CUT_WORD_VSWZYC(2, "切词——税务专有词", "vswzyc", ModelTypeEnum.MLEAP.getCode()),
@@ -19,9 +21,13 @@ public enum ModelParamEnum {
     TENSORFLOW_DIRTY_WORD(101, "脏话模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_SENTIMENT_ANALYSIS(102, "情感分析模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_IS_TAX_ISSUE(103, "问题过滤模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
-    TENSORFLOW_QA(104, "问答匹配模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_AP_BILSTM(104, "ap-bilstm模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_SHEBAO(105, "社保模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_FIRSTALL(106, "三分类模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_SYNTHESIS(107, "综合模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_CITY_MANAGEMENT(108, "城管模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_ZNZX(109, "智能咨询", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_RERANKING(110, "reranking模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     ;
 
     int code;

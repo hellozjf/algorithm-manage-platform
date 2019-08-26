@@ -3,6 +3,7 @@ import os
 import pickle
 import re
 
+import collections
 import jieba
 import numpy as np
 import pandas as pd
@@ -17,6 +18,8 @@ app = Flask(__name__)
 
 global INPUT_QUESTION
 global INPUT_ANSWER
+CANDIDATE_CSV = './data/tmp/candidate.csv'
+CANDIDATE_P = './data/tmp/candidate.p'
 
 
 class DataProcessor(object):
@@ -248,65 +251,136 @@ def cosine(x, y):
     return cosine_score
 
 
-def pre_processing(stop_words_file, vocab_processor_file):
+def word2id(vocab_dict, token, max_length=120):
+    """将词转换为ID表示。"""
+    ids = [vocab_dict.get(i, 0) for i in token.split()]
 
-    global INPUT_QUESTION
-    global INPUT_ANSWER
+    while len(ids) < max_length:
+        ids.append(0)
 
+    if len(ids) > max_length:
+        ids = ids[:max_length]
+
+    assert len(ids) == max_length
+    return ids
+
+
+def ap_pre_processing(stop_words_file, vocab_file):
+    """ap-bilstm数据预处理。"""
     # 加载停用词
     stopwords = pd.read_csv(stop_words_file,
                             index_col=False,
                             quoting=3,
                             sep="\t",
-                            names=['stopword'],
-                            encoding='utf-8')
-    stopwords = stopwords['stopword'].values
+                            names=["stopword"],
+                            encoding="utf-8")
+    stopwords = stopwords["stopword"].values
 
     # 加载词典
-    vp = tf.contrib.learn.preprocessing.VocabularyProcessor.restore(
-        vocab_processor_file)
-
-    input_questions = INPUT_QUESTION.split(' ')
+    with open(vocab_file, encoding="utf-8") as f:
+        vocab_list = list(map(lambda x: x.strip(), f.readlines()))
+    vocab_dict = {w: i for i, w in enumerate(vocab_list)}
 
     # 构造输入数据
     answer_token = chinese_tokenizer(INPUT_ANSWER, stopwords)
     answer_len = [len(answer_token.split(" "))]
-    answer = list(vp.transform([answer_token]))[0].tolist()
+    answer = word2id(vocab_dict, answer_token)
 
-    question_token = chinese_tokenizer(input_questions[0], stopwords)
+    question_token = chinese_tokenizer(INPUT_QUESTION, stopwords)
     question_len = [len(question_token.split(" "))]
-    question = list(vp.transform([question_token]))[0].tolist()
+    question = word2id(vocab_dict, question_token)
 
     return question, question_len, answer, answer_len
 
 
-def post_processing(question_tensor, answer_dict_file, answer_matrics_file):
-    input_questions = INPUT_QUESTION.split(' ')
+def ap_post_processing(question_tensor, answer_dict_file):
+    """ap-bilstm数据后处理。"""
 
-    # 加载答案字典与答案矩阵
-    answer_dict = pickle.load(open(answer_dict_file, mode='rb'))
-    answer_matrics = pickle.load(open(answer_matrics_file, mode='rb'))
+    # 加载答案字典
+    answer_dict = pickle.load(open(answer_dict_file, mode="rb"))
+
+    # 答案矩阵
+    answer_tensor = [v[3] for v in answer_dict.values()]
+    shape = answer_tensor[0].shape[0]
+    answer_matrics = np.array(answer_tensor).reshape(-1, shape)
 
     # 处理模型输出
-    question_matrics = np.asarray(question_tensor['predictions'])
-    shape = question_matrics[0].shape[0]
-    question_matrics = np.array(question_matrics).reshape(-1, shape)
+    question_tensor = np.asarray(question_tensor["predictions"])
+    shape = question_tensor[0].shape[0]
+    question_matrics = np.array(question_tensor).reshape(-1, shape)
 
     # 计算余弦相似度
     prob = cosine(question_matrics, answer_matrics)
 
-    # 输出置信度，HDID, 语音编号，问题，答案
-    probs, hdid, voice_number, q, a = [], [], [], [], []
-    for idx, i in enumerate(prob):
-        result = [(x, y) for x, y in zip(i, answer_dict.values())]
-        for p, r in sorted(result, reverse=True)[:100]:
-            probs.append(p)
-            hdid.append(r[0])
-            voice_number.append(r[1])
-            q.append(input_questions[idx])
-            a.append(r[2])
+    # 输出候选答案集
+    probs, q, a, hdid, voice_number = [], [], [], [], []
+    q_tensor, a_tensor = [], []
+    result = [(x, y) for x, y in zip(prob[0], answer_dict.values())]
+    for p, r in sorted(result, reverse=True)[:10]:
+        probs.append(p)
+        q.append(INPUT_QUESTION)
+        q_tensor.append(question_tensor[0])
+        hdid.append(r[0])
+        voice_number.append(r[1])
+        a.append(r[2])
+        a_tensor.append(r[3])
 
-    return probs, hdid, voice_number, q, a
+    candidate_df = pd.DataFrame({
+        "HDID": hdid,
+        "voice_number": voice_number,
+        "question": q,
+        "answer": a})
+    candidate_df.to_csv(CANDIDATE_CSV, index=False)
+
+    candidate_dataset = collections.OrderedDict()
+    for idx, row in enumerate(zip(probs, q_tensor, a_tensor)):
+        candidate_dataset[idx] = row
+    pickle.dump(candidate_dataset, open(CANDIDATE_P, 'wb'))
+
+    # candidate_df = pd.DataFrame({
+    #     "HDID": hdid,
+    #     "voice_number": voice_number,
+    #     "question": q,
+    #     "answer": a})
+    #
+    # candidate_dataset = collections.OrderedDict()
+    # for idx, row in enumerate(zip(probs, q_tensor, a_tensor)):
+    #     candidate_dataset[idx] = row
+    #
+    # return candidate_df, candidate_dataset
+
+
+def pre_processing(pickle_file):
+    """reranking数据预处理。"""
+    # 候选答案集字典
+    dataset_dict = pickle.load(open(pickle_file, mode="rb"))
+
+    # 构造输入数据
+    probability_list, question_list, answer_list = [], [], []
+    for row in dataset_dict.values():
+        probability_list.append(row[0])
+        question_list.append(row[1].tolist())
+        answer_list.append(row[2].tolist())
+
+    return probability_list, question_list, answer_list
+
+
+def post_processing(probs, csv_file):
+    """reranking数据后处理。"""
+
+    # 候选答案的DataFrame
+    dataset_df = pd.read_csv(csv_file)
+    hdid = dataset_df['HDID'].values.tolist()
+    voice_number = dataset_df['voice_number'].values.tolist()
+    question = dataset_df['question'].values.tolist()
+    answer = dataset_df['answer'].values.tolist()
+
+    # 处理模型输出
+    prob = [x[0] for x in probs["predictions"]]
+    result = [x for x in zip(prob, hdid, voice_number, question, answer)]
+    output = sorted(result, reverse=True)[:1]
+
+    return output
 
 
 @app.route('/getParams', methods=['POST'])
@@ -316,29 +390,15 @@ def getParams():
     other = request.form['other']
 
     if int(paramCode) == 104:
-        # 参考ModelParamEnum.java，104是问答分析模型，是另一个独立的处理方式
+        # 参考ModelParamEnum.java，104是ap-bilstm，是另一个独立的处理方式
         global INPUT_QUESTION
         global INPUT_ANSWER
-        if other:
-            # 说明是后处理
-            INPUT_QUESTION = sentence
-            probs, hdid, voice_number, q, a = post_processing(eval(other), './data/answer_dict.p', './data/answer_matrics.p')
-            result = []
-            for i in zip(probs, hdid, voice_number, q, a):
-                result.append({
-                    'probs': i[0],
-                    'hdid': i[1],
-                    'voice_number': i[2],
-                    'q': i[3],
-                    'a': i[4]
-                })
-            return jsonify(result)
-        else:
+        if not other:
             # 说明是数据预处理
             INPUT_QUESTION = sentence
             INPUT_ANSWER = '增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。'
-            question, question_len, answer, answer_len = pre_processing(
-                './data/stopwords.txt', './data/vocab_processor.bin')
+            question, question_len, answer, answer_len = ap_pre_processing(
+                "./data/stopwords.txt", "./data/vocabulary.txt")
             result = {
                 'question': question,
                 'question_len': question_len,
@@ -346,7 +406,26 @@ def getParams():
                 'answer_len': answer_len
             }
             return jsonify(result)
-
+        else:
+            # 说明是后处理
+            INPUT_QUESTION = sentence
+            ap_post_processing(eval(other), './data/answer_dict.p')
+            return ''
+    elif int(paramCode) == 110:
+        # 参考ModelParamEnum.java，110是reranking，是另一个独立的处理方式
+        if not other:
+            # 说明是数据预处理
+            probability, question_, answer_ = pre_processing(CANDIDATE_P)
+            result = {
+                'probability': probability,
+                'question_': question_,
+                'answer_': answer_,
+            }
+            return jsonify(result)
+        else:
+            # 说明是后处理
+            output = post_processing(eval(other), CANDIDATE_CSV)
+            return jsonify(output)
     else:
         if int(paramCode) == 102:
             # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点
