@@ -42,6 +42,16 @@ public class PredictResultVO {
     private String predictString;
 
     /**
+     * 预测的分类结果的编号
+     */
+    private String predictId;
+
+    /**
+     * 预测的分类结果的节点代码
+     */
+    private String predictNodeCode;
+
+    /**
      * 预测的分类类别
      */
     private Integer predict;
@@ -60,4 +70,9 @@ public class PredictResultVO {
      * docker容器返回的结果
      */
     private String dockerResult;
+
+    /**
+     * 如果是级联容器，这里返回下一个容器的输入
+     */
+    private String nextInput;
 }

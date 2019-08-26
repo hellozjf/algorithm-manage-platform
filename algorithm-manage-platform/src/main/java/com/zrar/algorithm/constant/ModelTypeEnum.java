@@ -11,6 +11,7 @@ import lombok.Getter;
 public enum ModelTypeEnum {
     MLEAP(1, "mleap"),
     TENSORFLOW(2, "tensorflow"),
+    COMPOSE(3, "compose"),
     ;
 
     int code;

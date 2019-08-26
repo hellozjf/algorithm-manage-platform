@@ -35,8 +35,11 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.net.URI;
@@ -49,6 +52,15 @@ import java.util.stream.Collectors;
 @RestController
 @Slf4j
 public class ModelController {
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${server.port}")
+    private String port;
+
+    @Value("${server.servlet.context-path}")
+    private String contextPath;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -160,9 +172,14 @@ public class ModelController {
                 return ResultUtils.success(getTensorflowIsTaxIssuePredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_QA.getCode()) {
-                // 是否是问答模型的结果
-                return ResultUtils.success(getTensorflowQAPredictResultVO(ps, sentence, params,
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+                // 是否是ap_bilstm模型的结果
+                return ResultUtils.success(getTensorflowApBilstmPredictResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
+                // 是否是reranking模型的结果
+                return ResultUtils.success(getTensorflowRerankingPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
@@ -195,6 +212,22 @@ public class ModelController {
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             }
+        } else if (modelEntity.getType() == ModelTypeEnum.COMPOSE.getCode()) {
+            String[] modelsArray = modelEntity.getCompose().split(",");
+            String result = sentence;
+            // 依次调用模型
+            ResultVO resultVO = null;
+            for (String model : modelsArray) {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.valueOf("application/json;UTF-8"));
+                org.springframework.http.HttpEntity<String> stringEntity = new org.springframework.http.HttpEntity<>(result, headers);
+                String url = "http://localhost:" + port + "/" + contextPath + "/" + model + "/predict";
+                resultVO = restTemplate.postForObject(url, stringEntity, ResultVO.class);
+                Map map = (Map) resultVO.getData();
+                Object nextInput = map.get("nextInput");
+                result = nextInput == null ? "" : nextInput.toString();
+            }
+            return resultVO;
         }
 
         return ResultUtils.error(ResultEnum.UNKNOWN_MODEL_TYPE);
@@ -202,6 +235,7 @@ public class ModelController {
 
     /**
      * 获取分词数据
+     *
      * @param sentence
      * @param paramCode
      * @return
@@ -248,6 +282,7 @@ public class ModelController {
 
     /**
      * 通过Java获取社保模型Tensorflow前处理后的参数
+     *
      * @param sentence
      * @param paramCode
      * @return
@@ -269,6 +304,7 @@ public class ModelController {
 
     /**
      * 通过Java获取问答模型Tensorflow前处理后的参数
+     *
      * @param sentence
      * @param paramCode
      * @return
@@ -336,6 +372,7 @@ public class ModelController {
 
     /**
      * 将句子转成字，然后转换为向量
+     *
      * @param sentence
      * @param paramCode
      * @param maxSeqLength
@@ -357,7 +394,7 @@ public class ModelController {
                 // 数字先放到缓冲区缓存起来
                 number.append(word);
             } else {
-                if (! StringUtils.isEmpty(number.toString())) {
+                if (!StringUtils.isEmpty(number.toString())) {
                     // 将之前缓存的数字放入list中
                     wordList.add(number.toString());
                     // 清除缓存的数字
@@ -366,7 +403,7 @@ public class ModelController {
                 wordList.add(word);
             }
         }
-        if (! StringUtils.isEmpty(number.toString())) {
+        if (!StringUtils.isEmpty(number.toString())) {
             // 将之前缓存的数字放入list中
             wordList.add(number.toString());
             // 清除缓存的数字
@@ -422,6 +459,7 @@ public class ModelController {
 
     /**
      * 获取tensorflow向量
+     *
      * @param sentence
      * @param paramCode
      * @return
@@ -430,12 +468,38 @@ public class ModelController {
     public String getRawTensorflowParams(String sentence, int paramCode) {
         // TODO 每增加一个模型，需要添加一段代码逻辑
         if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
-            paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
-            paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+                paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
+                paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
             return getRawJavaTensorflowParams(sentence, paramCode, 128);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_QA.getCode()) {
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
             return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
+            // 问答模型处理很复杂
+            String result = getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+            try {
+                JsonNode jsonNode = objectMapper.readTree(result);
+                ArrayNode answer_ = (ArrayNode) jsonNode.get("answer_");
+                ArrayNode probability = (ArrayNode) jsonNode.get("probability");
+                ArrayNode question_ = (ArrayNode) jsonNode.get("question_");
+
+                StringBuilder stringBuilder = new StringBuilder();
+
+                int size = answer_.size();
+                for (int i = 0; i < size; i++) {
+                    stringBuilder.append("{");
+                    stringBuilder.append("\"answer\":");
+                    stringBuilder.append(objectMapper.writeValueAsString(answer_.get(i)));
+                    stringBuilder.append(",\"question\":");
+                    stringBuilder.append(objectMapper.writeValueAsString(question_.get(i)));
+                    stringBuilder.append(",\"probability\":[");
+                    stringBuilder.append(probability.get(i).asText());
+                    stringBuilder.append("]},");
+                }
+                return stringBuilder.substring(0, stringBuilder.length() - 1);
+            } catch (IOException e) {
+                log.error("e = {}", e);
+            }
         } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
             // 社保是512长度
             return getRawPythonTensorflowParams(sentence, paramCode, "", 512);
@@ -455,6 +519,7 @@ public class ModelController {
 
     /**
      * 获取喂给mleap的数据
+     *
      * @param sentence
      * @param paramCode
      * @return
@@ -467,6 +532,7 @@ public class ModelController {
 
     /**
      * 获取喂给tensorflow的数据
+     *
      * @param sentence
      * @param paramCode
      * @return
@@ -612,33 +678,80 @@ public class ModelController {
     }
 
     /**
-     * 获取返回的tensorflow问答模型预测结果VO
+     * 获取返回的AP_BILSTM模型预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
-    private Object getTensorflowQAPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+    private Object getTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
 
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
-        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_QA.getCode(), ps, 120);
+        // 这次调用主要是在tensorflow-param中生成一个文件
+        getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode(), ps, 120);
         long afterPost = System.currentTimeMillis();
 
-        // 先将预测结果转化为JsonNode
-        JsonNode jsonNode = null;
+        // 预测结果无返回
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredict(null);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        predictResultVO.setPostCostMs(afterPost - beforePost);
+        predictResultVO.setDockerResult(ps);
+        predictResultVO.setNextInput(sentence);
+
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的AP_BILSTM模型预测结果VO
+     *
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowRerankingPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 首先拿着ps去查询
+        long beforePost = System.currentTimeMillis();
+        // 这次调用主要是在tensorflow-param中生成一个文件
+        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_RERANKING.getCode(), ps, 120);
+        long afterPost = System.currentTimeMillis();
+
+        // 预测结果类似
+        // [
+        //    [
+        //        0.9984029023653523,
+        //        "8ef5d5397fc24f618661132f61444291",
+        //        "2.2.4990",
+        //        "小规模纳税人逾期补申报流程？",
+        //        "您好！一般纳税人增值税逾期未申报的需要到主管税局进行补申报，小规模纳税人增值税逾期未申报的可以在电子税务局逾期申报模块补申报或者去主管税局进行补申报；并应按照规定办理相关处罚事宜。"
+        //    ]
+        // ]
         ArrayNode arrayNode = null;
         try {
-            arrayNode = (ArrayNode) objectMapper.readTree(result);
-            if (arrayNode.size() > 0) {
-                jsonNode = arrayNode.get(0);
+            ArrayNode a1 = (ArrayNode) objectMapper.readTree(result);
+            if (a1 != null && a1.size() == 1) {
+                arrayNode = (ArrayNode) a1.get(0);
             }
         } catch (IOException e) {
-            log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+            e.printStackTrace();
         }
 
         JsonNode paramsNode = null;
@@ -651,29 +764,26 @@ public class ModelController {
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
         predictResultVO.setPredict(null);
-        predictResultVO.setPredictString(jsonNode.get("a").asText());
-        predictResultVO.setProbability(jsonNode.get("probs").asDouble());
+        predictResultVO.setProbability(arrayNode.get(0).asDouble());
+        predictResultVO.setPredictId(arrayNode.get(1).asText());
+        predictResultVO.setPredictNodeCode(arrayNode.get(2).asText());
+        predictResultVO.setPredictString(arrayNode.get(4).asText());
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
         predictResultVO.setPostCostMs(afterPost - beforePost);
+        predictResultVO.setDockerResult(ps);
 
-        // 将arrayNode转化为List<JsonNode>
-        List<JsonNode> jsonNodeList = new ArrayList<>();
-        for (JsonNode node : arrayNode) {
-            jsonNodeList.add(node);
-        }
-        predictResultVO.setPredictList(jsonNodeList);
         return predictResultVO;
     }
 
     /**
      * 获取返回的tensorflow默认预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
     private Object getTensorflowResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
@@ -705,11 +815,11 @@ public class ModelController {
     /**
      * 获取返回的tensorflow社保预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
     private Object getTensorflowSocialSecurityResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
@@ -762,11 +872,11 @@ public class ModelController {
     /**
      * 获取返回的三分类城管社保综合预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
     private Object getTensorflowFirstAllResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
@@ -813,11 +923,11 @@ public class ModelController {
     /**
      * 获取返回的综合模型预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
     private Object getTensorflowSynthesisResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
@@ -888,11 +998,11 @@ public class ModelController {
     /**
      * 获取返回的城管模型预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
     private Object getTensorflowCityManagementResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
@@ -948,11 +1058,11 @@ public class ModelController {
     /**
      * 获取返回的城管模型预测结果VO
      *
-     * @param ps                    喂给tensorflow模型后预测的结果
-     * @param sentence              原始问题
-     * @param params                原始问题的预处理结果
-     * @param getParamsCostMs       预处理耗费的时间
-     * @param predictCostMs         预测耗费的时间
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
      * @return
      */
     private Object getTensorflowZnzxParams(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {

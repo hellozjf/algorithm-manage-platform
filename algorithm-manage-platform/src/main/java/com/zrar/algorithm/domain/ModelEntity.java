@@ -47,4 +47,10 @@ public class ModelEntity extends BaseEntity {
      * @see com.zrar.algorithm.constant.ModelParamEnum
      */
     private int param;
+
+    /**
+     * 模型组合
+     * 多个依次执行的模型，它们的参数值用逗号分隔
+     */
+    private String compose;
 }

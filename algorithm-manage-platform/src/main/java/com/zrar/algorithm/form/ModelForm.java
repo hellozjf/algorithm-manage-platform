@@ -41,7 +41,7 @@ public class ModelForm {
      * @see com.zrar.algorithm.constant.ModelTypeEnum
      */
     @ModelTypeConstraint(message = "模型类型不合法")
-    private int type;
+    private Integer type;
 
     /**
      * 模型参数
@@ -50,5 +50,10 @@ public class ModelForm {
      * @see com.zrar.algorithm.constant.ModelParamEnum
      */
     @ModelParamConstraint(message = "模型参数不合法")
-    private int param;
+    private Integer param;
+
+    /**
+     * 模型组合
+     */
+    private String compose;
 }

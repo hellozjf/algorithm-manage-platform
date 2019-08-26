@@ -251,7 +251,29 @@ public class WebController {
 
         log.debug("saveToDatabase");
 
-        ModelEntity modelEntity = null;
+        ModelEntity modelEntity = createOrUpdateModelEntity(modelForm, isCreate);
+        // 计算一下md5
+        try (InputStream inputStream = new FileInputStream(file)) {
+            modelEntity.setMd5(DigestUtils.md5DigestAsHex(inputStream));
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.FILE_IS_WRONG.getCode(), e.getMessage());
+        }
+        modelEntity = modelRepository.save(modelEntity);
+        return modelEntity;
+    }
+
+    private ModelEntity saveToDatabase(ModelForm modelForm, boolean isCreate) {
+
+        log.debug("saveToDatabase");
+
+        ModelEntity modelEntity = createOrUpdateModelEntity(modelForm, isCreate);
+        modelEntity = modelRepository.save(modelEntity);
+        return modelEntity;
+    }
+
+    private ModelEntity createOrUpdateModelEntity(ModelForm modelForm, boolean isCreate) {
+        ModelEntity modelEntity;
         if (isCreate) {
             modelEntity = new ModelEntity();
             BeanUtils.copyProperties(modelForm, modelEntity);
@@ -262,14 +284,6 @@ public class WebController {
             BeanUtils.copyProperties(modelForm, modelEntity);
             modelEntity.setGmtCreate(gmtCreate);
         }
-        // 计算一下md5
-        try (InputStream inputStream = new FileInputStream(file)) {
-            modelEntity.setMd5(DigestUtils.md5DigestAsHex(inputStream));
-        } catch (IOException e) {
-            log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.FILE_IS_WRONG.getCode(), e.getMessage());
-        }
-        modelEntity = modelRepository.save(modelEntity);
         return modelEntity;
     }
 
@@ -337,6 +351,12 @@ public class WebController {
     public ResultVO addModel(@RequestParam("file") MultipartFile multipartFile,
                              @Valid ModelForm modelForm,
                              BindingResult bindingResult) {
+
+        // 组合类型的记录，只添加数据库记录
+        if (modelForm.getType() == ModelTypeEnum.COMPOSE.getCode()) {
+            ModelEntity modelEntity = saveToDatabase(modelForm, true);
+            return ResultUtils.success(modelEntity);
+        }
 
         // 判断上传过来的文件是不是空的
         if (multipartFile.isEmpty()) {
@@ -420,6 +440,12 @@ public class WebController {
     @PostMapping("/modifyModel")
     public ResultVO modifyModel(@RequestParam("file") MultipartFile multipartFile,
                                 ModelForm modelForm) {
+
+        // 组合类型的记录，只添加数据库记录
+        if (modelForm.getType() == ModelTypeEnum.COMPOSE.getCode()) {
+            ModelEntity modelEntity = saveToDatabase(modelForm, false);
+            return ResultUtils.success(modelEntity);
+        }
 
         // 获取要保存的文件
         File file = new File(fileService.getModelOutterPath(modelForm.getName()));

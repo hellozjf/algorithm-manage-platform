@@ -77,6 +77,12 @@
                             textField:'desc',
                             panelHeight:'auto'
                           });
+
+                          // 如果是组合的模型，需要将上传模型文件修改为选择已有的模型
+                          if (rec.code == 3) {
+                            $('#addModelFormModelFileTr').hide();
+                            $('#addModelFormModelComposeTr').show();
+                          }
                         }
                     "/></td>
       </tr>
@@ -84,9 +90,13 @@
         <td>模型参数:</td>
         <td><select id="addModelFormModelParam" class="easyui-combobox" name="param" style="width:200px;"/></td>
       </tr>
-      <tr>
+      <tr id="addModelFormModelFileTr">
         <td>模型文件:</td>
         <td><input class="easyui-filebox" name="file" data-options="prompt:'请选择一个文件'" style="width:100%"></td>
+      </tr>
+      <tr id="addModelFormModelComposeTr" style="display: none">
+        <td>模型组合:</td>
+        <td><input class="easyui-textbox" type="text" name="compose" data-options="prompt:'ap-bilstm,reranking'"></td>
       </tr>
     </table>
   </form>
@@ -166,6 +176,12 @@
                             textField:'desc',
                             panelHeight:'auto'
                           });
+
+                          // 如果是组合的模型，需要将上传模型文件修改为选择已有的模型
+                          if (rec.code == 3) {
+                            $('#modifyModelFormModelFileTr').hide();
+                            $('#modifyModelFormModelComposeTr').show();
+                          }
                         }
                     "/></td>
       </tr>
@@ -173,9 +189,13 @@
         <td>模型参数:</td>
         <td><select id="modifyModelFormModelParam" class="easyui-combobox" name="param" style="width:200px;"/></td>
       </tr>
-      <tr>
+      <tr id="modifyModelFormModelFileTr">
         <td>模型文件:</td>
         <td><input class="easyui-filebox" name="file" data-options="prompt:'请选择一个文件'" style="width:100%"></td>
+      </tr>
+      <tr id="modifyModelFormModelComposeTr" style="display: none">
+        <td>模型组合:</td>
+        <td><input id="modifyModelFormModelCompose" class="easyui-textbox" type="text" name="compose" data-options="prompt:'ap-bilstm,reranking'"></td>
       </tr>
     </table>
   </form>
@@ -306,6 +326,7 @@
           $('#modifyModelFormModelDesc').textbox('setValue', json.data.desc);
           $('#modifyModelFormModelType').combobox('setValue', json.data.type);
           $('#modifyModelFormModelParam').combobox('setValue', json.data.param);
+          $('#modifyModelFormModelCompose').textbox('setValue', json.data.compose);
         } else {
           $.messager.alert({
             title: '获取模型失败',
