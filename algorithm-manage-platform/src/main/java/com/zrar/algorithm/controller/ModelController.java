@@ -217,15 +217,32 @@ public class ModelController {
             String result = sentence;
             // 依次调用模型
             ResultVO resultVO = null;
-            for (String model : modelsArray) {
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.valueOf("application/json;UTF-8"));
-                org.springframework.http.HttpEntity<String> stringEntity = new org.springframework.http.HttpEntity<>(result, headers);
-                String url = "http://localhost:" + port + "/" + contextPath + "/" + model + "/predict";
-                resultVO = restTemplate.postForObject(url, stringEntity, ResultVO.class);
+            synchronized (this) {
+                long totalPreCostMs = 0L;
+                long totalPredictCostMs = 0L;
+                long totalPostCostMs = 0L;
+                for (String model : modelsArray) {
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.valueOf("application/json;UTF-8"));
+                    org.springframework.http.HttpEntity<String> stringEntity = new org.springframework.http.HttpEntity<>(result, headers);
+                    String url = "http://localhost:" + port + contextPath + "/" + model + "/predict";
+                    resultVO = restTemplate.postForObject(url, stringEntity, ResultVO.class);
+                    Map map = (Map) resultVO.getData();
+                    Object nextInput = map.get("nextInput");
+                    Object preCostMs = map.get("preCostMs");
+                    Object predictCostMs = map.get("predictCostMs");
+                    Object postCostMs = map.get("postCostMs");
+                    result = nextInput == null ? "" : nextInput.toString();
+                    totalPreCostMs += preCostMs == null ? 0 : (int) preCostMs;
+                    totalPredictCostMs += predictCostMs == null ? 0 : (int) predictCostMs;
+                    totalPostCostMs += postCostMs == null ? 0 : (int) postCostMs;
+                }
+
+                // 更新调用时间
                 Map map = (Map) resultVO.getData();
-                Object nextInput = map.get("nextInput");
-                result = nextInput == null ? "" : nextInput.toString();
+                map.put("preCostMs", totalPreCostMs);
+                map.put("predictCostMs", totalPredictCostMs);
+                map.put("postCostMs", totalPostCostMs);
             }
             return resultVO;
         }
