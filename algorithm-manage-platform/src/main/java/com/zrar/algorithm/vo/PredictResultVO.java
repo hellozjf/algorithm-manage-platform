@@ -17,6 +17,11 @@ public class PredictResultVO {
     private String sentence;
 
     /**
+     * 问答匹配模型中的原始问题
+     */
+    private String rawQuestion;
+
+    /**
      * 转换之后的参数
      */
     private JsonNode params;

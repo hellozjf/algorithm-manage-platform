@@ -228,6 +228,7 @@ def convert_single_example2(ex_index, example, label_list, max_seq_length, token
 
 # 中文分词
 def chinese_tokenizer(seq, stop_words):
+    """中文分词。"""
     seq = jieba.lcut(seq)
     seq = filter(lambda x: x not in stop_words, seq)
     seq = " ".join(seq)
@@ -239,9 +240,10 @@ def tokenizer_fn(iterator):
     return (x.split(" ") for x in iterator)
 
 
-# 余弦相似度
 def cosine(x, y):
-    """x, y shape (batch_size, vector_size)"""
+    """计算余弦相似度。
+    x, y shape (batch_size, vector_size).
+    """
     sum_xy = np.matmul(x, y.T)
     normalize_x = np.expand_dims(np.sqrt(np.sum(x * x, 1)), 1)
     normalize_y = np.expand_dims(np.sqrt(np.sum(y * y, 1)), 1).T
@@ -300,7 +302,7 @@ def ap_post_processing(question_tensor, answer_dict_file):
     answer_dict = pickle.load(open(answer_dict_file, mode="rb"))
 
     # 答案矩阵
-    answer_tensor = [v[3] for v in answer_dict.values()]
+    answer_tensor = [v[4] for v in answer_dict.values()]
     shape = answer_tensor[0].shape[0]
     answer_matrics = np.array(answer_tensor).reshape(-1, shape)
 
@@ -318,12 +320,12 @@ def ap_post_processing(question_tensor, answer_dict_file):
     result = [(x, y) for x, y in zip(prob[0], answer_dict.values())]
     for p, r in sorted(result, reverse=True)[:10]:
         probs.append(p)
-        q.append(INPUT_QUESTION)
-        q_tensor.append(question_tensor[0])
         hdid.append(r[0])
         voice_number.append(r[1])
-        a.append(r[2])
-        a_tensor.append(r[3])
+        q.append(r[2])
+        q_tensor.append(question_tensor[0])
+        a.append(r[3])
+        a_tensor.append(r[4])
 
     candidate_df = pd.DataFrame({
         "HDID": hdid,
@@ -336,18 +338,6 @@ def ap_post_processing(question_tensor, answer_dict_file):
     for idx, row in enumerate(zip(probs, q_tensor, a_tensor)):
         candidate_dataset[idx] = row
     pickle.dump(candidate_dataset, open(CANDIDATE_P, 'wb'))
-
-    # candidate_df = pd.DataFrame({
-    #     "HDID": hdid,
-    #     "voice_number": voice_number,
-    #     "question": q,
-    #     "answer": a})
-    #
-    # candidate_dataset = collections.OrderedDict()
-    # for idx, row in enumerate(zip(probs, q_tensor, a_tensor)):
-    #     candidate_dataset[idx] = row
-    #
-    # return candidate_df, candidate_dataset
 
 
 def pre_processing(pickle_file):
@@ -397,8 +387,9 @@ def getParams():
             # 说明是数据预处理
             INPUT_QUESTION = sentence
             INPUT_ANSWER = '增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。'
+            # ap-bilstm数据预处理
             question, question_len, answer, answer_len = ap_pre_processing(
-                "./data/stopwords.txt", "./data/vocabulary.txt")
+                "./data/stopwords.txt", "./data/total_vocabulary.txt")
             result = {
                 'question': question,
                 'question_len': question_len,
@@ -409,12 +400,14 @@ def getParams():
         else:
             # 说明是后处理
             INPUT_QUESTION = sentence
-            ap_post_processing(eval(other), './data/answer_dict.p')
+            # ap-bilstm数据后处理，得到候选答案
+            ap_post_processing(eval(other), "./data/total_answer_dict.p")
             return ''
     elif int(paramCode) == 110:
         # 参考ModelParamEnum.java，110是reranking，是另一个独立的处理方式
         if not other:
             # 说明是数据预处理
+            # reranking数据预处理
             probability, question_, answer_ = pre_processing(CANDIDATE_P)
             result = {
                 'probability': probability,
@@ -424,6 +417,7 @@ def getParams():
             return jsonify(result)
         else:
             # 说明是后处理
+            # reranking数据后处理
             output = post_processing(eval(other), CANDIDATE_CSV)
             return jsonify(output)
     else:

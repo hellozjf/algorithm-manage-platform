@@ -195,7 +195,8 @@
       </tr>
       <tr id="modifyModelFormModelComposeTr" style="display: none">
         <td>模型组合:</td>
-        <td><input id="modifyModelFormModelCompose" class="easyui-textbox" type="text" name="compose" data-options="prompt:'ap-bilstm,reranking'"></td>
+        <td><input id="modifyModelFormModelCompose" class="easyui-textbox" type="text" name="compose"
+                   data-options="prompt:'ap-bilstm,reranking'"></td>
       </tr>
     </table>
   </form>
@@ -249,9 +250,14 @@
       <td><a href="#" class="easyui-linkbutton" onclick="test()">测试</a></td>
     </tr>
     <tr>
+      <td>原始问题:</td>
+      <td><input id="testRawQuestion" class="easyui-textbox" name="raw"
+                 style="width:600px"></td>
+    </tr>
+    <tr>
       <td>预测结果:</td>
       <td><input id="testPredictString" class="easyui-textbox" type="text" name="predictString"
-                 data-options="readonly:true" style="width: 600px"></td>
+                 data-options="readonly:true,multiline:true" style="width: 600px;height:200px"></td>
     </tr>
     <tr id="trPredictId" style="display: none">
       <td>预测ID:</td>
@@ -278,7 +284,8 @@
       <!--<td><input id="testPredictList" class="easyui-textbox" type="text" name="predictList"-->
       <!--data-options="multiline:true" style="width: 600px; height: 400px"></td>-->
       <td>
-        <table id="testPredictList" class="easyui-datagrid" style="width: 600px; height: 400px" data-options="nowrap: false">
+        <table id="testPredictList" class="easyui-datagrid" style="width: 600px; height: 400px"
+               data-options="nowrap: false">
           <thead>
           <tr>
             <th data-options="field:'probs',width:100">置信度</th>
@@ -291,21 +298,28 @@
       </td>
     </tr>
     <tr>
+      <td>显示更多</td>
+      <td>
+        <input id="btnShowMore" class="easyui-switchbutton" label="显示更多:"
+               data-options="onText:'是',offText:'否'" labelWidth="120" tabindex="1">
+      </td>
+    </tr>
+    <tr id="trPreCostMs" style="display: none">
       <td>前置耗时:</td>
       <td><input id="testPreCostMs" class="easyui-textbox" type="text" name="preCostMs"
                  data-options="readonly:true" style="width: 600px"></td>
     </tr>
-    <tr>
+    <tr id="trPredictCostMs" style="display: none">
       <td>预测耗时:</td>
       <td><input id="testPredictCostMs" class="easyui-textbox" type="text" name="predictCostMs"
                  data-options="readonly:true" style="width: 600px"></td>
     </tr>
-    <tr>
+    <tr id="trPostCostMs" style="display: none">
       <td>后置耗时:</td>
       <td><input id="testPostCostMs" class="easyui-textbox" type="text" name="postCostMs"
                  data-options="readonly:true" style="width: 600px"></td>
     </tr>
-    <tr>
+    <tr id="trWord" style="display: none">
       <td>参数结果:</td>
       <td><input id="testWord" class="easyui-textbox" type="text" name="word"
                  data-options="multiline:true,readonly:true" style="height:160px; width:600px"></td>
@@ -326,7 +340,7 @@
     var id = a.attr('rowId');
     $('#modifyModelFormModelId').textbox('setValue', id);
     $.ajax({
-      url: ctxPath+'/web/getModel?id=' + id,
+      url: ctxPath + '/web/getModel?id=' + id,
       method: 'GET',
       dataType: 'json',
       success: function (json) {
@@ -365,7 +379,7 @@
           ids.push(rows[i].id);
         }
         $.ajax({
-          url: ctxPath+'/web/delModel',
+          url: ctxPath + '/web/delModel',
           data: {
             ids: ids.join(',')
           },
@@ -415,10 +429,17 @@
       success: function (json) {
         if (json.code === 0) {
           $('#testWord').textbox('setValue', JSON.stringify(json.data.params));
+          $('#testRawQuestion').textbox('setValue', json.data.rawQuestion);
           $('#testPredictString').textbox('setValue', json.data.predictString);
-          $('#testPredict').textbox('setValue', json.data.predict);
           $('#testProbability').textbox('setValue', json.data.probability);
 
+          debugger
+          if (json.data.predict) {
+            $('#testPredict').textbox('setValue', json.data.predict);
+            $('#trPredict').show();
+          } else {
+            $('#trPredict').hide();
+          }
           if (json.data.predictId) {
             $('#testPredictId').textbox('setValue', json.data.predictId);
             $('#trPredictId').show();
@@ -436,7 +457,6 @@
 
             // 要先将datagrid显示出来，再加数据才能看到数据
             $('#trPredictList').css('display', '');
-            $('#trPredict').css('display', 'none');
 
             // 首先删除原有的数据
             var rows = $('#testPredictList').datagrid('getRows');
@@ -459,7 +479,6 @@
             }
           } else {
             $('#trPredictList').css('display', 'none');
-            $('#trPredict').css('display', '');
           }
           $('#testPreCostMs').textbox('setValue', json.data.preCostMs);
           $('#testPostCostMs').textbox('setValue', json.data.postCostMs);
@@ -600,6 +619,24 @@
         $.messager.progress('close');
       }
     });
+
+    $('#btnShowMore').switchbutton({
+      checked: false,
+      onChange: function (checked) {
+        if (checked == true) {
+          $('#trPreCostMs').show();
+          $('#trPredictCostMs').show();
+          $('#trPostCostMs').show();
+          $('#trWord').show();
+        }
+        else if (checked == false) {
+          $('#trPreCostMs').hide();
+          $('#trPredictCostMs').hide();
+          $('#trPostCostMs').hide();
+          $('#trWord').hide();
+        }
+      }
+    })
   });
 </script>
 </body>

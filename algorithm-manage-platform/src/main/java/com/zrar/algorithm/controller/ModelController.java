@@ -784,6 +784,7 @@ public class ModelController {
         predictResultVO.setProbability(arrayNode.get(0).asDouble());
         predictResultVO.setPredictId(arrayNode.get(1).asText());
         predictResultVO.setPredictNodeCode(arrayNode.get(2).asText());
+        predictResultVO.setRawQuestion(arrayNode.get(3).asText());
         predictResultVO.setPredictString(arrayNode.get(4).asText());
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);

@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.zrar</groupId>
     <artifactId>algorithm-manage-platform</artifactId>
-    <version>1.0.8</version>
+    <version>1.0.9</version>
     <name>algorithm-manage-platform</name>
     <description>Demo project for Spring Boot</description>
 
