@@ -249,7 +249,7 @@
                  style="width:600px"></td>
       <td><a href="#" class="easyui-linkbutton" onclick="test()">测试</a></td>
     </tr>
-    <tr>
+    <tr id="trRawQuestion" style="display: none">
       <td>原始问题:</td>
       <td><input id="testRawQuestion" class="easyui-textbox" name="raw"
                  style="width:600px"></td>
@@ -429,11 +429,15 @@
       success: function (json) {
         if (json.code === 0) {
           $('#testWord').textbox('setValue', JSON.stringify(json.data.params));
-          $('#testRawQuestion').textbox('setValue', json.data.rawQuestion);
           $('#testPredictString').textbox('setValue', json.data.predictString);
           $('#testProbability').textbox('setValue', json.data.probability);
 
-          debugger
+          if (json.data.rawQuestion) {
+            $('#testRawQuestion').textbox('setValue', json.data.rawQuestion);
+            $('#trRawQuestion').show();
+          } else {
+            $('#trRawQuestion').hide();
+          }
           if (json.data.predict) {
             $('#testPredict').textbox('setValue', json.data.predict);
             $('#trPredict').show();
