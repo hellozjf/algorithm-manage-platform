@@ -22,13 +22,13 @@ public enum ModelParamEnum {
     // tensorflow的参数获取方式
     TENSORFLOW_DIRTY_WORD(101, "脏话模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_SENTIMENT_ANALYSIS(102, "情感分析模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
-    TENSORFLOW_IS_TAX_ISSUE(103, "问题过滤模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_IS_TAX_ISSUE(103, "智能咨询-问题过滤", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_AP_BILSTM(104, "ap-bilstm模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_SHEBAO(105, "社保模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_FIRSTALL(106, "三分类模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_SYNTHESIS(107, "综合模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_CITY_MANAGEMENT(108, "城管模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
-    TENSORFLOW_ZNZX(109, "智能咨询", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_ZNZX(109, "智能咨询-场景分类", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_RERANKING(110, "reranking模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     ;
 

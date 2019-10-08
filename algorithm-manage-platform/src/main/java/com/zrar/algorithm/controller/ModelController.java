@@ -203,7 +203,7 @@ public class ModelController {
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
-                // 智能咨询模型
+                // 智能咨询-场景分类模型
                 return ResultUtils.success(getTensorflowZnzxParams(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
@@ -1074,7 +1074,7 @@ public class ModelController {
     }
 
     /**
-     * 获取返回的城管模型预测结果VO
+     * 获取返回的场景模型预测结果VO
      *
      * @param ps              喂给tensorflow模型后预测的结果
      * @param sentence        原始问题
@@ -1102,6 +1102,7 @@ public class ModelController {
         double p2 = arrayNode.get(2).doubleValue();
         double p3 = arrayNode.get(3).doubleValue();
         double p4 = arrayNode.get(4).doubleValue();
+        double p5 = arrayNode.get(5).doubleValue();
         int value = 0;
         double p = p0;
         if (p1 > p) {
@@ -1119,6 +1120,10 @@ public class ModelController {
         if (p4 > p) {
             value = 4;
             p = p4;
+        }
+        if (p5 > p) {
+            value = 5;
+            p = p5;
         }
 
         JsonNode paramsNode = null;
@@ -1146,8 +1151,12 @@ public class ModelController {
             case 4:
                 predictResultVO.setPredictString("其他");
                 break;
+            case 5:
+                predictResultVO.setPredictString("社保类别");
+                break;
         }
         predictResultVO.setPredict(value);
+        predictResultVO.setProbability(p);
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
         return predictResultVO;
