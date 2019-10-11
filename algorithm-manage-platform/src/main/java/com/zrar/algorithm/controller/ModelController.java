@@ -526,8 +526,8 @@ public class ModelController {
             // 三分类和综合模型都是300长度
             return getRawPythonTensorflowParams(sentence, paramCode, "", 300);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
-            // 智能咨询模型长度是96
-            return getRawPythonTensorflowParams(sentence, paramCode, "", 96);
+            // 智能咨询模型长度是128
+            return getRawPythonTensorflowParams(sentence, paramCode, "", 128);
         }
 
         log.error("unknown paramCode = {}", paramCode);
