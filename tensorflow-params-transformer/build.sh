@@ -1,1 +1,1 @@
-docker build -t 192.168.2.150/zrar/tensorflow-params-transformer:1.0.9 .
+docker build -t 192.168.2.150/zrar/tensorflow-params-transformer:1.0.11 .

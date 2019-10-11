@@ -461,8 +461,8 @@ def getParams():
         }
 
         if int(paramCode) == 109:
-            # 智能咨询是96位
-            max_seq_length = 96
+            # 智能咨询是128位
+            max_seq_length = 128
         else:
             max_seq_length = 128
         vocab_file = "vocab.txt"
