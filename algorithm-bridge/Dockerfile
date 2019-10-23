@@ -7,4 +7,4 @@ ADD target/${JAR_FILE}  /app/app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/bin/java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["/usr/bin/java", "-agentlib:jdwp=transport=dt_socket,address=5005,server=y,suspend=n", "-jar", "/app/app.jar"]

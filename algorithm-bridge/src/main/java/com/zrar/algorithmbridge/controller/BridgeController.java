@@ -7,6 +7,7 @@ import org.springframework.http.*;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import javax.servlet.http.HttpServletRequest;
@@ -146,7 +147,12 @@ public class BridgeController {
         try {
             result = restTemplate.exchange(url, HttpMethod.valueOf(request.getMethod()), new HttpEntity<>(body, headers), byte[].class);
         } catch (Exception exp) {
-            return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+            if (exp instanceof HttpClientErrorException) {
+                HttpClientErrorException e = (HttpClientErrorException) exp;
+                return new ResponseEntity(e.getResponseBodyAsByteArray(), e.getResponseHeaders(), e.getStatusCode());
+            } else {
+                return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+            }
         }
 
         return new ResponseEntity<>(result.getBody(), result.getHeaders(), result.getStatusCode());

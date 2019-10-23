@@ -11,6 +11,7 @@
 
     <groupId>com.hellozjf.learn.company.zrar</groupId>
     <artifactId>algorithm-bridge</artifactId>
+    <version>1.0.1</version>
     <name>algorithm-bridge</name>
 
     <properties>
