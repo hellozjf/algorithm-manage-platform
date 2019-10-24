@@ -7,8 +7,7 @@ import org.springframework.http.*;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
@@ -48,7 +47,7 @@ public class BridgeController {
         try {
             result = restTemplate.exchange(url, HttpMethod.valueOf(request.getMethod()), new HttpEntity<>(body, headers), byte[].class);
         } catch (Exception exp) {
-            return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return getResponseEntity(exp);
         }
 
         return new ResponseEntity<>(result.getBody(), result.getHeaders(), result.getStatusCode());
@@ -77,7 +76,7 @@ public class BridgeController {
         try {
             result = restTemplate.exchange(url, HttpMethod.valueOf(request.getMethod()), new HttpEntity<>(body, headers), byte[].class);
         } catch (Exception exp) {
-            return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return getResponseEntity(exp);
         }
 
         return new ResponseEntity<>(result.getBody(), result.getHeaders(), result.getStatusCode());
@@ -112,7 +111,7 @@ public class BridgeController {
         try {
             result = restTemplate.exchange(url, HttpMethod.valueOf(request.getMethod()), new HttpEntity<>(body, headers), byte[].class);
         } catch (Exception exp) {
-            return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return getResponseEntity(exp);
         }
 
         return new ResponseEntity<>(result.getBody(), result.getHeaders(), result.getStatusCode());
@@ -147,14 +146,18 @@ public class BridgeController {
         try {
             result = restTemplate.exchange(url, HttpMethod.valueOf(request.getMethod()), new HttpEntity<>(body, headers), byte[].class);
         } catch (Exception exp) {
-            if (exp instanceof HttpClientErrorException) {
-                HttpClientErrorException e = (HttpClientErrorException) exp;
-                return new ResponseEntity(e.getResponseBodyAsByteArray(), e.getResponseHeaders(), e.getStatusCode());
-            } else {
-                return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+            return getResponseEntity(exp);
         }
 
         return new ResponseEntity<>(result.getBody(), result.getHeaders(), result.getStatusCode());
+    }
+
+    private ResponseEntity<byte[]> getResponseEntity(Exception exp) throws UnsupportedEncodingException {
+        if (exp instanceof HttpStatusCodeException) {
+            HttpStatusCodeException e = (HttpStatusCodeException) exp;
+            return new ResponseEntity(e.getResponseBodyAsByteArray(), e.getResponseHeaders(), e.getStatusCode());
+        } else {
+            return new ResponseEntity<>(exp.getMessage().getBytes("utf-8"), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }
