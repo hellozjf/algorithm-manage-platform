@@ -30,6 +30,7 @@ public enum ModelParamEnum {
     TENSORFLOW_CITY_MANAGEMENT(108, "城管模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_ZNZX(109, "智能咨询-场景分类", "", ModelTypeEnum.TENSORFLOW.getCode()),
     TENSORFLOW_RERANKING(110, "reranking模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
+    TENSORFLOW_BERT_MATCH(111, "bert_match模型", "", ModelTypeEnum.TENSORFLOW.getCode()),
     ;
 
     int code;

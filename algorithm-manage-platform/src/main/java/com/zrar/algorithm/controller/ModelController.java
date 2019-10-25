@@ -215,6 +215,11 @@ public class ModelController {
                 return ResultUtils.success(getTensorflowZnzxParams(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
+                // 是否是bert_match模型的结果
+                return ResultUtils.success(getTensorflowBertMatchPredictResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
             } else {
                 return ResultUtils.success(getTensorflowResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -472,7 +477,7 @@ public class ModelController {
         Map<String, Object> result = new HashMap<>();
         result.put("input_ids", inputIds);
         result.put("input_mask", inputMask);
-        if (paramCode != ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+        if (paramCode != ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
             result.put("label_ids", 0);
         }
         result.put("segment_ids", segmentIds);
@@ -618,7 +623,8 @@ public class ModelController {
             return getRawJavaTensorflowParams(sentence, paramCode, 128);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
-//            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
             return getRawJavaTensorflowParams(sentence, paramCode, 84);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
             // 问答模型处理很复杂
@@ -833,7 +839,7 @@ public class ModelController {
      * @param predictCostMs   预测耗费的时间
      * @return
      */
-    private Object getOldTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+    private Object getTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
 
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
@@ -872,7 +878,7 @@ public class ModelController {
      * @param predictCostMs   预测耗费的时间
      * @return
      */
-    private Object getTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+    private Object getTensorflowBertMatchPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
 
         // 先将预测结果转化为JsonNode
         JsonNode jsonNode = null;
@@ -887,17 +893,25 @@ public class ModelController {
         ArrayNode arrayNode = (ArrayNode) predictions;
         ArrayNode arrayNode1 = (ArrayNode) arrayNode.get(0);
 
-        String str = null;
+        String rawQuestion = null;
+        String predictString = null;
         try {
             String text = objectMapper.writeValueAsString(arrayNode1);
-            str = RuntimeUtil.execForStr("python",
+            rawQuestion = RuntimeUtil.execForStr("python",
                     "script/python/ap_bilstm/deployment.py",
                     "script/python/ap_bilstm/stand_em_.pk",
                     text);
+            if (! StringUtils.isEmpty(rawQuestion)) {
+                rawQuestion = rawQuestion.trim();
+            }
+            predictString = RuntimeUtil.execForStr("python",
+                    "script/python/ap_bilstm/get_result.py",
+                    "script/python/ap_bilstm/train_set.csv",
+                    rawQuestion);
         } catch (Exception e) {
             log.error("e = {}", e);
         }
-        log.debug("str = {}", str);
+        log.debug("str = {}", rawQuestion);
 
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
@@ -916,7 +930,8 @@ public class ModelController {
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
         predictResultVO.setPredict(null);
-        predictResultVO.setPredictString(str);
+        predictResultVO.setPredictString(predictString);
+        predictResultVO.setRawQuestion(rawQuestion);
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
         predictResultVO.setPostCostMs(afterPost - beforePost);
