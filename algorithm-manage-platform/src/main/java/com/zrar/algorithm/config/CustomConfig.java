@@ -30,6 +30,11 @@ public class CustomConfig {
     private Integer bridgePort;
 
     /**
+     * algorithm-bridge的调试端口
+     */
+    private Integer bridgeDebugPort;
+
+    /**
      * 模型放置在宿主机里面的路径地址
      */
     private String modelOuterPath;

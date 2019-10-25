@@ -255,15 +255,19 @@ public class DockerServiceImpl implements DockerService {
 
         // 添加bridge的service
         DockerComposeDTO.Service bridge = new DockerComposeDTO.Service();
-        bridge.setImage(customConfig.getHarborIp() + "/zrar/algorithm-bridge:1.0.0");
+        bridge.setImage(customConfig.getHarborIp() + "/zrar/algorithm-bridge:1.0.2");
         bridge.setNetworks(Arrays.asList("algorithm-bridge"));
-        bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080"));
+        if (customConfig.getBridgeDebugPort() != null) {
+            bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080", customConfig.getBridgeDebugPort() + ":5005"));
+        } else {
+            bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080"));
+        }
         services.set("bridge", yamlObjectMapper.valueToTree(bridge));
 
         // 添加tensorflow-params-transformer的service
         DockerComposeDTO.Service tensorflowParamsTransformer = new DockerComposeDTO.Service();
         // TODO 每添加一个模型，需要修改tensorflow-params-transformer的版本号
-        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.11");
+        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.12");
         tensorflowParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
         // 默认是5000端口
         services.set("tensorflow-params-transformer", yamlObjectMapper.valueToTree(tensorflowParamsTransformer));

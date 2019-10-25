@@ -1,5 +1,11 @@
 package com.zrar.algorithm.controller;
 
+import cn.hutool.core.io.file.FileReader;
+import cn.hutool.core.util.RuntimeUtil;
+import cn.hutool.extra.tokenizer.Result;
+import cn.hutool.extra.tokenizer.TokenizerEngine;
+import cn.hutool.extra.tokenizer.TokenizerUtil;
+import cn.hutool.extra.tokenizer.Word;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,12 +41,14 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
@@ -464,6 +472,126 @@ public class ModelController {
         Map<String, Object> result = new HashMap<>();
         result.put("input_ids", inputIds);
         result.put("input_mask", inputMask);
+        if (paramCode != ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+            result.put("label_ids", 0);
+        }
+        result.put("segment_ids", segmentIds);
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (JsonProcessingException e) {
+            log.error("e = {}", e);
+            return "";
+        }
+    }
+
+    /**
+     * 将句子转成字，然后转换为向量，其中要考虑是否去除标点、去停词、长度
+     *
+     * @param sentence              原始句子
+     * @param bRemovePunctuation    是否去除标点
+     * @param bRemoveStopWord       是否去停词
+     * @param maxSeqLength          长度或位数
+     * @return
+     */
+    private String getRawJavaTensorflowParams(String sentence, boolean bRemovePunctuation, boolean bRemoveStopWord, int maxSeqLength) {
+
+        if (bRemovePunctuation) {
+            // 移除标点符号
+            sentence.replaceAll("\\W", "");
+        }
+        if (bRemoveStopWord) {
+            // 自动根据用户引入的分词库的jar来自动选择使用的引擎
+            TokenizerEngine engine = TokenizerUtil.createEngine();
+            // 解析文本
+            Result result = engine.parse(sentence);
+            Iterator<Word> iterator = result;
+            List<String> wordList = new ArrayList<>();
+
+            // 去停词
+            try {
+                File file = new ClassPathResource("static/tensorflow/stopWord.txt").getFile();
+                FileReader fileReader = new FileReader(file);
+                List<String> lines = fileReader.readLines();
+                while (iterator.hasNext()) {
+                    Word word = iterator.next();
+                    String text = word.getText();
+                    if (lines.contains(text)) {
+                        continue;
+                    } else {
+                        wordList.add(text);
+                    }
+                }
+            } catch (IOException e) {
+                log.error("e = {}", e);
+            }
+
+            // 把去停词以后的字符串重组出来
+            sentence = String.join("", wordList);
+        }
+
+        // 这里我不知道怎么切割出单个字和完整的数字，所以我先全部切成单个，切完再处理成完整的数字
+        String[] words = sentence.split("");
+        List<String> wordList = new ArrayList<>();
+        wordList.add("[CLS]");
+        StringBuilder number = new StringBuilder();
+        for (String word : words) {
+            if (org.apache.commons.lang3.StringUtils.isNumeric(word)) {
+                // 数字先放到缓冲区缓存起来
+                number.append(word);
+            } else {
+                if (!StringUtils.isEmpty(number.toString())) {
+                    // 将之前缓存的数字放入list中
+                    wordList.add(number.toString());
+                    // 清除缓存的数字
+                    number.setLength(0);
+                }
+                wordList.add(word);
+            }
+        }
+        if (!StringUtils.isEmpty(number.toString())) {
+            // 将之前缓存的数字放入list中
+            wordList.add(number.toString());
+            // 清除缓存的数字
+            number.setLength(0);
+        }
+        wordList.add("[SEP]");
+
+        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
+        List<Integer> integerList = wordList.stream().map(word -> {
+            Integer integer = dictMap.get(word);
+            if (integer == null) {
+                return dictMap.get("[UNK]");
+            } else {
+                return integer;
+            }
+        }).collect(Collectors.toList());
+
+        List<Integer> inputIds = new ArrayList<>();
+        List<Integer> inputMask = new ArrayList<>();
+        List<Integer> segmentIds = new ArrayList<>();
+        if (integerList.size() > maxSeqLength) {
+            // 如果integerList长度太长，则它第128个元素置为结束符
+            integerList.set(maxSeqLength - 1, integerList.get(integerList.size() - 1));
+        } else if (integerList.size() < maxSeqLength) {
+            // 如果integerList长度不够，则需要补零
+            for (int i = integerList.size(); i < maxSeqLength; i++) {
+                integerList.add(0);
+            }
+        }
+        for (int i = 0; i < maxSeqLength; i++) {
+            int t = integerList.get(i);
+            inputIds.add(t);
+            if (t > 0) {
+                inputMask.add(1);
+            } else {
+                inputMask.add(0);
+            }
+            segmentIds.add(0);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("input_ids", inputIds);
+        result.put("input_mask", inputMask);
         result.put("label_ids", 0);
         result.put("segment_ids", segmentIds);
         try {
@@ -490,7 +618,8 @@ public class ModelController {
             return getRawJavaTensorflowParams(sentence, paramCode, 128);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
-            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+//            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+            return getRawJavaTensorflowParams(sentence, paramCode, 84);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
             // 问答模型处理很复杂
             String result = getRawPythonTensorflowParams(sentence, paramCode, "", 120);
@@ -704,7 +833,7 @@ public class ModelController {
      * @param predictCostMs   预测耗费的时间
      * @return
      */
-    private Object getTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+    private Object getOldTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
 
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
@@ -724,6 +853,70 @@ public class ModelController {
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
         predictResultVO.setPredict(null);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        predictResultVO.setPostCostMs(afterPost - beforePost);
+        predictResultVO.setDockerResult(ps);
+        predictResultVO.setNextInput(sentence);
+
+        return predictResultVO;
+    }
+
+    /**
+     * 获取返回的AP_BILSTM模型预测结果VO
+     *
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
+     * @return
+     */
+    private Object getTensorflowApBilstmPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        ArrayNode arrayNode1 = (ArrayNode) arrayNode.get(0);
+
+        String str = null;
+        try {
+            String text = objectMapper.writeValueAsString(arrayNode1);
+            str = RuntimeUtil.execForStr("python",
+                    "script/python/ap_bilstm/deployment.py",
+                    "script/python/ap_bilstm/stand_em_.pk",
+                    text);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        log.debug("str = {}", str);
+
+        // 首先拿着ps去查询
+        long beforePost = System.currentTimeMillis();
+        // 先将预测结果转化为JsonNode
+        long afterPost = System.currentTimeMillis();
+
+        // 预测结果无返回
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredict(null);
+        predictResultVO.setPredictString(str);
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
         predictResultVO.setPostCostMs(afterPost - beforePost);
