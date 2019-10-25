@@ -373,11 +373,13 @@ def post_processing(probs, csv_file):
     return output
 
 
+# 生成参数
 @app.route('/getParams', methods=['POST'])
 def getParams():
     sentence = request.form['sentence']
     paramCode = request.form['paramCode']
     other = request.form['other']
+    maxLength = request.form['maxLength']
 
     if int(paramCode) == 104:
         # 参考ModelParamEnum.java，104是ap-bilstm，是另一个独立的处理方式
@@ -443,10 +445,7 @@ def getParams():
                     'text_a': sentence
                 }
 
-                if int(paramCode) == 105:
-                    max_seq_length = 512
-                elif int(paramCode) == 106 or int(paramCode) == 107 or int(paramCode) == 108:
-                    max_seq_length = 300
+                max_seq_length = int(maxLength);
                 vocab_file = "vocab.txt"
                 tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
                 label_list = ['0']
@@ -460,11 +459,7 @@ def getParams():
             'text_a': sentence
         }
 
-        if int(paramCode) == 109:
-            # 智能咨询是128位
-            max_seq_length = 128
-        else:
-            max_seq_length = 128
+        max_seq_length = int(maxLength)
         vocab_file = "vocab.txt"
         tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
         label_list = ['0']
@@ -473,13 +468,6 @@ def getParams():
         return jsonify(result)
 
 
+# 开启restful服务
 if __name__ == "__main__":
     app.run(host='0.0.0.0')
-    # processor = myprocess()
-    # predict_examples = processor.get_dev_examples('data')
-    # max_seq_length=128
-    # vocab_file="vocab.txt"
-    # tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=True)
-    # label_list=['0','1']
-    # for (ex_index, example) in enumerate(predict_examples):
-    #     feature = convert_single_example(ex_index, example, label_list, max_seq_length, tokenizer)
