@@ -898,15 +898,15 @@ public class ModelController {
         try {
             String text = objectMapper.writeValueAsString(arrayNode1);
             rawQuestion = RuntimeUtil.execForStr("python",
-                    "script/python/ap_bilstm/deployment.py",
-                    "script/python/ap_bilstm/stand_em_.pk",
+                    "python/ap_bilstm/deployment.py",
+                    "python/ap_bilstm/stand_em_.pk",
                     text);
             if (! StringUtils.isEmpty(rawQuestion)) {
                 rawQuestion = rawQuestion.trim();
             }
             predictString = RuntimeUtil.execForStr("python",
-                    "script/python/ap_bilstm/get_result.py",
-                    "script/python/ap_bilstm/train_set.csv",
+                    "python/ap_bilstm/get_result.py",
+                    "python/ap_bilstm/train_set.csv",
                     rawQuestion);
         } catch (Exception e) {
             log.error("e = {}", e);
