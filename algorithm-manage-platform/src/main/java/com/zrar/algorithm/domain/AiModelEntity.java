@@ -21,13 +21,12 @@ public class AiModelEntity extends BaseEntity {
      * 实际的模型文件后面需要加.zip后缀
      * 模型的名称也是后续algorithm-bridge需要的模型的路径
      */
-    @Column(unique = true)
-    private String name;
+    private String shortName;
 
     /**
      * 模型描述
      */
-    private String desc;
+    private String description;
 
     /**
      * 模型md5
@@ -35,7 +34,7 @@ public class AiModelEntity extends BaseEntity {
     private String md5;
 
     /**
-     * 模型类型，目前支持mleap和tensorflow
+     * 模型类型，目前支持mleap、tensorflow和compose
      * @see com.zrar.algorithm.constant.ModelTypeEnum
      */
     private int type;
@@ -68,4 +67,14 @@ public class AiModelEntity extends BaseEntity {
      * 版本号，从1开始，每次修改增加1
      */
     private int version;
+
+    /**
+     * 模型的状态
+     */
+    private String state;
+
+    /**
+     * 模型服务的端口
+     */
+    private String port;
 }

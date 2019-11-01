@@ -35,8 +35,8 @@
   <tr>
     <th data-options="field:'ck', checkbox:true"></th>
     <th data-options="field:'id', hidden:true">编号</th>
-    <th data-options="field:'name', width:200">模型名称</th>
-    <th data-options="field:'desc', width:200">模型描述</th>
+    <th data-options="field:'shortName', width:200">模型名称</th>
+    <th data-options="field:'description', width:200">模型描述</th>
     <th data-options="field:'md5', width:300">模型MD5</th>
     <th data-options="field:'typeName', width:200">模型类型</th>
     <th data-options="field:'paramName', width:200">模型参数</th>
@@ -66,7 +66,7 @@
                         url:ctxPath+'/web/getModelTypeList',
 								        method:'get',
                         valueField:'code',
-                        textField:'desc',
+                        textField:'description',
                         panelHeight:'auto',
                         onSelect: function (rec) {
                           console.debug(rec);
@@ -74,7 +74,7 @@
                             url:ctxPath+'/web/getModelParamList?typeCode=' + rec.code,
                             method:'get',
                             valueField:'code',
-                            textField:'desc',
+                            textField:'description',
                             panelHeight:'auto'
                           });
 
@@ -165,7 +165,7 @@
                         url:ctxPath+'/web/getModelTypeList',
 								        method:'get',
                         valueField:'code',
-                        textField:'desc',
+                        textField:'description',
                         panelHeight:'auto',
                         onSelect: function (rec) {
                           console.debug(rec);
@@ -173,7 +173,7 @@
                             url:ctxPath+'/web/getModelParamList?typeCode=' + rec.code,
                             method:'get',
                             valueField:'code',
-                            textField:'desc',
+                            textField:'description',
                             panelHeight:'auto'
                           });
 
@@ -281,7 +281,7 @@
     </tr>
     <tr id="trPredictList" style="display: none">
       <td>预测列表</td>
-      <!--<td><input id="testPredictList" class="easyui-textbox" type="text" name="predictList"-->
+      <!--<td><input id="testPredictList" class="easyui-textbox" type="text" shortName="predictList"-->
       <!--data-options="multiline:true" style="width: 600px; height: 400px"></td>-->
       <td>
         <table id="testPredictList" class="easyui-datagrid" style="width: 600px; height: 400px"

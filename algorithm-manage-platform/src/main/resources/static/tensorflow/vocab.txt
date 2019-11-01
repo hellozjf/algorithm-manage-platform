@@ -8615,7 +8615,7 @@ fri
 ##ki
 103
 comments
-name
+shortName
 ##のて
 ##pe
 ##ine
@@ -10507,7 +10507,7 @@ tim
 ##ω
 ##nc
 ##ても
-##name
+##shortName
 log
 ips
 great

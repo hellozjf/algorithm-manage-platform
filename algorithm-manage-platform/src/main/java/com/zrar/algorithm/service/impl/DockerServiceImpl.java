@@ -1,31 +1,28 @@
 package com.zrar.algorithm.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.zrar.algorithm.config.CustomConfig;
+import cn.hutool.core.util.RuntimeUtil;
+import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.messages.*;
 import com.zrar.algorithm.constant.ModelTypeEnum;
-import com.zrar.algorithm.constant.ResultEnum;
-import com.zrar.algorithm.domain.ModelEntity;
-import com.zrar.algorithm.dto.DockerComposeDTO;
-import com.zrar.algorithm.exception.AlgorithmException;
-import com.zrar.algorithm.repository.ModelRepository;
-import com.zrar.algorithm.service.DockerService;
-import com.zrar.algorithm.service.FileService;
-import com.zrar.algorithm.service.MLeapService;
-import com.zrar.algorithm.service.RemoteService;
-import com.zrar.algorithm.util.ProcessUtils;
+import com.zrar.algorithm.constant.StateEnum;
+import com.zrar.algorithm.domain.AiModelEntity;
+import com.zrar.algorithm.repository.AiModelRepository;
+import com.zrar.algorithm.service.*;
+import com.zrar.algorithm.vo.FullNameVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-import java.io.*;
-import java.util.Arrays;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * docker服务
+ *
  * @author Jingfeng Zhou
  */
 @Slf4j
@@ -33,20 +30,10 @@ import java.util.List;
 public class DockerServiceImpl implements DockerService {
 
     @Autowired
-    private ModelRepository modelRepository;
-
-    @Autowired
-    private CustomConfig customConfig;
-
-    @Autowired
-    @Qualifier("yamlObjectMapper")
-    private ObjectMapper yamlObjectMapper;
+    private AiModelRepository aiModelRepository;
 
     @Autowired
     private MLeapService mLeapService;
-
-    @Autowired
-    private Runtime runtime;
 
     @Autowired
     private FileService fileService;
@@ -54,8 +41,20 @@ public class DockerServiceImpl implements DockerService {
     @Autowired
     private RemoteService remoteService;
 
+    @Autowired
+    private DockerClient dockerClient;
+
+    @Autowired
+    private ImageService imageService;
+
+    @Autowired
+    private ContainerService containerService;
+
     @Value("${spring.profiles.active}")
     private String active;
+
+    @Value("${custom.model-outer-path}")
+    private String modelOuterPath;
 
     /**
      * 是否已经启动
@@ -63,84 +62,86 @@ public class DockerServiceImpl implements DockerService {
     private boolean isStarted;
 
     @Override
-    public boolean isStarted() {
-        return isStarted;
-    }
-
-    @Override
     public void init() {
 
         isStarted = false;
 
         try {
-            // 创建相关文件夹
-            File folder = new File(customConfig.getModelOuterPath());
+            // 创建宿主机模型文件夹
+            File folder = new File(modelOuterPath);
             if (!folder.exists()) {
                 folder.mkdirs();
             }
+            // 开发环境，在开发服务器上新建模型文件夹，同时把模型拷贝到开发服务器上面去
             if (active.equalsIgnoreCase("dev")) {
                 String cmd = remoteService.createExecCommand("mkdir -p /opt/docker/algorithm-manage-platform/models");
-                Process process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
+                String result = RuntimeUtil.execForStr(cmd);
+                log.debug("{} return {}", cmd, result);
+
+                // todo 这里要验证一下，如果当前这个模型正在被使用，这样拷贝有没有什么问题
+                cmd = remoteService.createScpRCommand(modelOuterPath + "/*", "/opt/docker/algorithm-manage-platform/models/");
+                result = RuntimeUtil.execForStr(cmd);
+                log.debug("{} return {}", cmd, result);
             }
 
-            // 删除原有的docker-compose.yml创建的容器
-            if (active.equalsIgnoreCase("prod")) {
-                String cmd = "docker-compose down";
-                Process process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
-            } else if (active.equalsIgnoreCase("dev")) {
-                String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; docker-compose down");
-                Process process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
-            }
-
-            // 如果是dev版本，将模型拷贝到远程服务器
-            if (active.equalsIgnoreCase("dev")) {
-                // 先把远端的模型全部删了
-                String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models; rm -rf *");
-                Process process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
-                // 再把本地的模型全部拷贝到远端
-                cmd = remoteService.createScpRCommand(customConfig.getModelOuterPath() + "/*", "/opt/docker/algorithm-manage-platform/models/");
-                process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
-            }
-
-            // 如果是tensorflow模型，还需要解压
+            // 解压tensorflow模型
             File[] files = folder.listFiles();
             for (File file : files) {
                 if (file.isFile()) {
-                    String name = file.getName().split("\\.")[0];
-                    log.debug("name = {}", name);
-                    if (!modelRepository.findByName(name).isPresent()) {
+                    String fullName = file.getName().split("\\.")[0];
+                    log.debug("shortName = {}", fullName);
+                    // 从完整的名称中拆分出 前缀-类型-名称-版本
+                    FullNameVO containerNameVO = FullNameVO.getByFullName(fullName);
+                    // 判断数据库中是否有对应的记录
+                    if (!aiModelRepository.findByTypeAndShortNameAndVersion(
+                            containerNameVO.getIType(),
+                            containerNameVO.getName(),
+                            containerNameVO.getVersion()).isPresent()) {
                         log.error("找不到文件{}对应的数据库记录，这可能是个脏文件", file.getName());
                         continue;
                     }
-                    ModelEntity modelEntity = modelRepository.findByName(name).get();
+                    // 有的话把该记录取出来
+                    AiModelEntity modelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                            containerNameVO.getIType(),
+                            containerNameVO.getName(),
+                            containerNameVO.getVersion()
+                    ).get();
+                    // 如果是tensorflow类型的模型，还需要进行解压
                     if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
-                        unpackModel(modelEntity.getName());
+                        unpackModel(fullName);
                     }
                 }
             }
 
-            // 从数据库中生成新的docker-compose.yml文件
-            generateDockerComposeYml();
-            copyDockerComposeYml();
-
-            // 用新的docker-compose.yml文件创建容器
-            if (active.equalsIgnoreCase("prod")) {
-                String cmd = "docker-compose up -d";
-                Process process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
-            } else if (active.equalsIgnoreCase("dev")) {
-                String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; docker-compose up -d");
-                Process process = runtime.exec(cmd);
-                log.debug("{} return {}", cmd, process.waitFor());
+            // 将当前容器的状态与数据库的记录进行同步
+            List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+            List<AiModelEntity> aiModelEntityList = aiModelRepository.findAll();
+            for (AiModelEntity aiModelEntity : aiModelEntityList) {
+                boolean bFind = false;
+                FullNameVO fullNameVO = containerService.getFullName(aiModelEntity);
+                for (Container container : containerList) {
+                    if (isContainerNameEquals(container, fullNameVO.getFullName())) {
+                        bFind = true;
+                        if (!aiModelEntity.getState().equalsIgnoreCase(container.state())) {
+                            // 数据库中的状态与实际容器的状态不一致
+                            if (aiModelEntity.getState().equalsIgnoreCase(StateEnum.RUNNING.getState())) {
+                                dockerClient.startContainer(container.id());
+                            } else {
+                                // 若一直停止不了，10秒后kill掉它
+                                dockerClient.stopContainer(container.id(), 10);
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (!bFind) {
+                    // 数据库中有，但是容器中没有，那么就要重新创建一个容器
+                    ContainerCreation container = createDocker(fullNameVO.getFullName());
+                    if (aiModelEntity.getState().equalsIgnoreCase(StateEnum.RUNNING.getState())) {
+                        dockerClient.startContainer(container.id());
+                    }
+                }
             }
-
-            // 重新加载模型
-            reloadModels();
 
         } catch (Exception e) {
             log.error("e = {}", e);
@@ -149,200 +150,149 @@ public class DockerServiceImpl implements DockerService {
         isStarted = true;
     }
 
+    /**
+     * 比较容器名称是否等于fullName
+     * @param container
+     * @param fullName
+     * @return
+     */
+    private boolean isContainerNameEquals(Container container, String fullName) {
+        String containerName = container.names().get(0);
+        return containerName.equalsIgnoreCase(fullName);
+    }
+
     @Override
-    public void unpackModel(String name) throws IOException, InterruptedException {
+    public boolean isStarted() {
+        return isStarted;
+    }
+
+    @Override
+    public void unpackModel(String fullName) {
         if (active.equalsIgnoreCase("dev")) {
             // 开发环境，进入远程服务器，解压模型
-            String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models/; unzip -o " + name + ".zip -d " + name);
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
+            String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models/; unzip -o " + fullName + ".zip -d " + fullName);
+            String result = RuntimeUtil.execForStr(cmd);
+            log.debug("{} return {}", cmd, result);
         } else {
             // 生产环境，进入宿主机模型目录，解压模型
-            String cmd = "unzip -o " + customConfig.getModelOuterPath() + "/" + name + ".zip -d " + customConfig.getModelOuterPath() + "/" + name;
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
+            String cmd = "unzip -o " + modelOuterPath + "/" + fullName + ".zip -d " + modelOuterPath + "/" + fullName;
+            String result = RuntimeUtil.execForStr(cmd);
+            log.debug("{} return {}", cmd, result);
         }
     }
 
     @Override
-    public void copyDockerComposeYml() throws Exception {
-        if (active.equalsIgnoreCase("dev")) {
-            String cmd = remoteService.createScpCommand(customConfig.getDockerComposePath(), "/opt/docker/algorithm-manage-platform");
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
-        }
+    public void restartDocker(String fullName) throws Exception {
+        stopDocker(fullName);
+        startDocker(fullName);
     }
 
     @Override
-    public void restartDocker(String modelName) {
-        try {
-            log.debug("关闭容器");
-            deleteDocker(modelName);
-            log.debug("启动容器");
-            createDocker(modelName);
-
-            ModelEntity modelEntity = modelRepository.findByName(modelName).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-            if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
-                String modelPath = fileService.getModelOutterPath(modelName);
-                File modelFile = new File(modelPath);
-                if (modelFile.exists()) {
-                    log.debug("开始恢复{}", modelName);
-                    mLeapService.online(modelName);
-                }
-            }
-        } catch (Exception e) {
-            log.error("e = {}", e);
-        }
-    }
-
-    @Override
-    public void createDocker(String modelName) throws Exception {
-        String cmd = "docker-compose up -d " + modelName;
-        execCommand(cmd);
-    }
-
-    @Override
-    public void deleteDocker(String modelName) throws Exception {
-        String cmd = "docker-compose rm -sf " + modelName;
-        execCommand(cmd);
-    }
-
-    private void execCommand(String cmd) throws IOException, InterruptedException {
-        if (active.equalsIgnoreCase("dev")) {
-            cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform; " + cmd);
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
-        } else {
-            Process process = runtime.exec(cmd);
-            log.debug("{} return {}", cmd, process.waitFor());
-        }
-    }
-
-    @Override
-    public void generateDockerComposeYml() throws IOException {
-
-        DockerComposeDTO dockerComposeDTO = new DockerComposeDTO();
-
-        // 配置version
-        dockerComposeDTO.setVersion("3");
-
-        // 配置services
-        ObjectNode services = yamlObjectMapper.createObjectNode();
-
-        // 添加各个模型的service
-        List<ModelEntity> modelEntityList = modelRepository.findAll();
-        for (ModelEntity modelEntity : modelEntityList) {
-            if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
-                DockerComposeDTO.Service service = new DockerComposeDTO.Service();
-                service.setImage(customConfig.getHarborIp() + "/zrar/mleap-serving:0.9.0-SNAPSHOT");
-                service.setNetworks(Arrays.asList("algorithm-bridge"));
-                service.setVolumes(Arrays.asList("./models:/models"));
-                services.set(modelEntity.getName(), yamlObjectMapper.valueToTree(service));
-            } else if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
-                DockerComposeDTO.Service service = new DockerComposeDTO.Service();
-                // 如果本地有tensorflow-serving，那么就用这个优化过的镜像，没有还是使用官方镜像
-                if (haveOptimize()) {
-                    service.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-serving:1.14.0");
-                } else {
-                    service.setImage(customConfig.getHarborIp() + "/zrar/tensorflow/serving:1.14.0");
-                }
-                service.setNetworks(Arrays.asList("algorithm-bridge"));
-                service.setVolumes(Arrays.asList("./models/" + modelEntity.getName() + ":/models/" + modelEntity.getName()));
-                service.setEnvironment(Arrays.asList("MODEL_NAME=" + modelEntity.getName()));
-                services.set(modelEntity.getName(), yamlObjectMapper.valueToTree(service));
-            }
-        }
-
-        // 添加bridge的service
-        DockerComposeDTO.Service bridge = new DockerComposeDTO.Service();
-        bridge.setImage(customConfig.getHarborIp() + "/zrar/algorithm-bridge:1.0.2");
-        bridge.setNetworks(Arrays.asList("algorithm-bridge"));
-        if (customConfig.getBridgeDebugPort() != null) {
-            bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080", customConfig.getBridgeDebugPort() + ":5005"));
-        } else {
-            bridge.setPorts(Arrays.asList(customConfig.getBridgePort() + ":8080"));
-        }
-        services.set("bridge", yamlObjectMapper.valueToTree(bridge));
-
-        // 添加tensorflow-params-transformer的service
-        DockerComposeDTO.Service tensorflowParamsTransformer = new DockerComposeDTO.Service();
-        // TODO 每添加一个模型，需要修改tensorflow-params-transformer的版本号
-        tensorflowParamsTransformer.setImage(customConfig.getHarborIp() + "/zrar/tensorflow-params-transformer:1.0.12");
-        tensorflowParamsTransformer.setNetworks(Arrays.asList("algorithm-bridge"));
-        // 默认是5000端口
-        services.set("tensorflow-params-transformer", yamlObjectMapper.valueToTree(tensorflowParamsTransformer));
-
-        dockerComposeDTO.setServices(services);
-
-        // 配置网络
-        DockerComposeDTO.Networks networks = new DockerComposeDTO.Networks();
-        DockerComposeDTO.Networks.AlgorithmBridge mleapBridge = new DockerComposeDTO.Networks.AlgorithmBridge();
-        mleapBridge.setDriver("bridge");
-        DockerComposeDTO.Networks.AlgorithmBridge.Ipam ipam = new DockerComposeDTO.Networks.AlgorithmBridge.Ipam();
-        ipam.setDriver("default");
-        DockerComposeDTO.Networks.AlgorithmBridge.Ipam.Config config = new DockerComposeDTO.Networks.AlgorithmBridge.Ipam.Config();
-        config.setSubnet("10.1.1.224/27");
-        ipam.setConfig(Arrays.asList(config));
-        mleapBridge.setIpam(ipam);
-        networks.setAlgorithmBridge(mleapBridge);
-        dockerComposeDTO.setNetworks(networks);
-
-        // 将结果写入docker-compose.yml文件中
-        yamlObjectMapper.writerWithDefaultPrettyPrinter()
-                .writeValue(new File(customConfig.getDockerComposePath()), dockerComposeDTO);
+    public ContainerCreation recreateDocker(String fullName) throws Exception {
+        deleteDocker(fullName);
+        return createDocker(fullName);
     }
 
     /**
-     * 判断机器上是否有对应的cpu优化版tensorflow-serving
-     * 通过docker images | grep tensorflow-serving判断
+     * 创建docker容器
      *
-     * @return
+     * @param fullName
+     * @throws Exception
      */
-    private boolean haveOptimize() {
-        try {
-            if (active.equalsIgnoreCase("dev")) {
-                String cmd = remoteService.createExecCommand("docker images | grep tensorflow-serving");
-                Process process = runtime.exec(cmd);
-                String result = ProcessUtils.getInputStreamString(process);
-                log.debug("result = {}", result);
-                if (StringUtils.isEmpty(result)) {
-                    return false;
-                } else {
-                    return true;
+    @Override
+    public ContainerCreation createDocker(String fullName) throws Exception {
+        deleteDocker(fullName);
+
+        // 首先查出待创建的容器所需的镜像和端口
+        FullNameVO fullNameVO = FullNameVO.getByFullName(fullName);
+        String image = null;
+        int port = -1;
+        if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
+            image = imageService.getMleap();
+            port = 65327;
+        } else if (fullNameVO.getIType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+            image = imageService.getTensorflow();
+            port = 8501;
+        }
+
+        if (image != null) {
+            // 为容器绑定一个宿主机的随机端口
+            Map<String, List<PortBinding>> portBindings = new HashMap<>();
+            List<PortBinding> randomPort = new ArrayList<>();
+            randomPort.add(PortBinding.randomPort("0.0.0.0"));
+            portBindings.put(String.valueOf(port), randomPort);
+
+            HostConfig hostConfig = HostConfig.builder()
+                    .appendBinds("./models/" + fullName + ":/models/" + fullName)
+                    .portBindings(portBindings)
+                    .build();
+            ContainerConfig containerConfig = ContainerConfig.builder()
+                    .image(image)
+                    .env("MODEL_NAME=" + fullName)
+                    .hostConfig(hostConfig)
+                    .build();
+
+            ContainerCreation container = dockerClient.createContainer(containerConfig, fullName);
+            return container;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * 启动docker容器
+     *
+     * @param fullName
+     * @throws Exception
+     */
+    @Override
+    public void startDocker(String fullName) throws Exception {
+        List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+        for (Container container : containerList) {
+            if (isContainerNameEquals(container, fullName)) {
+                dockerClient.startContainer(container.id());
+
+                FullNameVO fullNameVO = FullNameVO.getByFullName(fullName);
+                if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
+                    // 还要把mleap模型上线
+                    String modelPath = fileService.getModelOutterPath(fullName);
+                    File modelFile = new File(modelPath);
+                    if (modelFile.exists()) {
+                        log.debug("开始恢复{}", fullName);
+                        mLeapService.online(fullName);
+                    }
                 }
-            } else {
-                String cmd = "docker images | grep tensorflow-serving";
-                Process process = runtime.exec(new String[] {"sh", "-c", cmd});
-                String result = ProcessUtils.getInputStreamString(process);
-                log.debug("result = {}", result);
-                if (StringUtils.isEmpty(result)) {
-                    return false;
-                } else {
-                    return true;
-                }
+
+                break;
             }
-        } catch (Exception e) {
-            log.error("e = {}", e);
-            return false;
         }
     }
 
     @Override
-    public void reloadModels() {
-        List<ModelEntity> modelEntityList = modelRepository.findAll();
-
-        for (ModelEntity modelEntity : modelEntityList) {
-            // 这里只有MLeap的模型需要恢复，tensorflow的模型自己就会恢复
-            if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
-                String modelName = modelEntity.getName();
-                String modelPath = fileService.getModelOutterPath(modelName);
-                File modelFile = new File(modelPath);
-                if (modelFile.exists()) {
-                    log.debug("开始恢复{}", modelName);
-                    mLeapService.online(modelName);
-                }
+    public void stopDocker(String fullName) throws Exception {
+        List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+        for (Container container : containerList) {
+            if (isContainerNameEquals(container, fullName)) {
+                dockerClient.stopContainer(container.id(), 10);
+                break;
             }
         }
-        log.debug("所有模型恢复完毕");
+    }
+
+    /**
+     * 根据fullName删除容器
+     * @param fullName
+     * @throws Exception
+     */
+    @Override
+    public void deleteDocker(String fullName) throws Exception {
+        List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+        for (Container container : containerList) {
+            if (isContainerNameEquals(container, fullName)) {
+                dockerClient.stopContainer(container.id(), 10);
+                dockerClient.removeContainer(container.id());
+                break;
+            }
+        }
     }
 }

@@ -1,11 +1,21 @@
 package com.zrar.algorithm.service;
 
+import com.spotify.docker.client.messages.ContainerCreation;
+
 import java.io.IOException;
 
 /**
+ * docker服务
+ *
  * @author Jingfeng Zhou
  */
 public interface DockerService {
+
+    /**
+     * 重新初始化docker相关服务
+     * @throws Exception
+     */
+    void init();
 
     /**
      * 判断docker服务是否已经正常运行
@@ -14,50 +24,50 @@ public interface DockerService {
     boolean isStarted();
 
     /**
-     * 重启docker相关服务
-     * @throws Exception
-     */
-    void init();
-
-    /**
      * 解压模型
-     * @param name
+     * @param fullName
      * @throws IOException
      * @throws InterruptedException
      */
-    void unpackModel(String name) throws IOException, InterruptedException;
-
-    /**
-     * 复制docker-compose.yml文件
-     * @throws Exception
-     */
-    void copyDockerComposeYml() throws Exception;
+    void unpackModel(String fullName) throws IOException, InterruptedException;
 
     /**
      * 重启docker容器
-     * @param modelName
+     * @param fullName
      */
-    void restartDocker(String modelName);
+    void restartDocker(String fullName) throws Exception;
+
+    /**
+     * 重新创建docker容器
+     * @param fullName
+     * @return
+     * @throws Exception
+     */
+    ContainerCreation recreateDocker(String fullName) throws Exception;
 
     /**
      * 创建docker容器
+     * @param fullName
      * @throws IOException
      */
-    void createDocker(String modelName) throws Exception;
+    ContainerCreation createDocker(String fullName) throws Exception;
+
+    /**
+     * 开启docker容器
+     * @param fullName
+     */
+    void startDocker(String fullName) throws Exception;
+
+    /**
+     * 关闭docker容器
+     * @param fullName
+     */
+    void stopDocker(String fullName) throws Exception;
 
     /**
      * 删除docker容器
+     * @param fullName
      * @throws IOException
      */
-    void deleteDocker(String modelName) throws Exception;
-
-    /**
-     * 根据数据库的记录，重新生成一份docker-compsoe.yml文件
-     */
-    void generateDockerComposeYml() throws IOException;
-
-    /**
-     * 让mleap重新加载一遍模型
-     */
-    void reloadModels();
+    void deleteDocker(String fullName) throws Exception;
 }

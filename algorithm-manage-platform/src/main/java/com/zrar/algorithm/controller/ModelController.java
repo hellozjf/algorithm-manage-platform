@@ -10,21 +10,22 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.zrar.algorithm.config.CustomConfig;
 import com.zrar.algorithm.constant.ModelParamEnum;
 import com.zrar.algorithm.constant.ModelTypeEnum;
 import com.zrar.algorithm.constant.ResultEnum;
-import com.zrar.algorithm.domain.ModelEntity;
+import com.zrar.algorithm.domain.AiModelEntity;
 import com.zrar.algorithm.dto.Indexes;
 import com.zrar.algorithm.exception.AlgorithmException;
-import com.zrar.algorithm.repository.ModelRepository;
+import com.zrar.algorithm.repository.AiModelRepository;
 import com.zrar.algorithm.service.DictMapService;
 import com.zrar.algorithm.service.StopWordService;
 import com.zrar.algorithm.util.JiebaUtils;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
 import com.zrar.algorithm.util.WordUtils;
+import com.zrar.algorithm.vo.ModelParamVO;
 import com.zrar.algorithm.vo.PredictResultVO;
+import com.zrar.algorithm.vo.PredictVO;
 import com.zrar.algorithm.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.Consts;
@@ -73,12 +74,6 @@ public class ModelController {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    private CustomConfig customConfig;
-
-    @Autowired
-    private ModelRepository modelRepository;
-
     @Value("${spring.profiles.active}")
     private String active;
 
@@ -91,29 +86,88 @@ public class ModelController {
     @Autowired
     private StopWordService stopWordService;
 
+    @Autowired
+    private AiModelRepository aiModelRepository;
+
     /**
-     * 用模型预测sentence，预测分为两个步骤，第一步获取参数，第二步使用参数预测结果
-     *
-     * @param modelName
+     * 将body体里面的文本进行解析，解析成PredictVO对象
      * @param sentence
      * @return
      */
-    @PostMapping("/{modelName}/predict")
-    public ResultVO predict(@PathVariable("modelName") String modelName,
+    private PredictVO unpackSentence(String shortName, String sentence) {
+        try {
+            if (sentence.trim().startsWith("{")) {
+                // 说明sentence就是一个JSON对象，直接解析
+                PredictVO predictVO = objectMapper.readValue(sentence, PredictVO.class);
+                predictVO.setShortName(shortName);
+                return predictVO;
+            } else {
+                // 说明sentence是单独一句话，将其包装一下
+                PredictVO predictVO = new PredictVO();
+                predictVO.setShortName(shortName);
+                predictVO.setSentence(sentence);
+
+                // 从所有相同名称的模型中，找出版本号最大的tensorflow模型，如果没有tensorflow模型那就找版本号最大的mleap模型
+                List<AiModelEntity> aiModelEntityList = aiModelRepository.findByShortName(shortName);
+                AiModelEntity wanted = null;
+                for (AiModelEntity aiModelEntity : aiModelEntityList) {
+                    if (wanted == null) {
+                        wanted = aiModelEntity;
+                    } else if (wanted.getType() == ModelTypeEnum.MLEAP.getCode() &&
+                                aiModelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+                        wanted = aiModelEntity;
+                    } else if (aiModelEntity.getVersion() > wanted.getVersion()) {
+                        wanted = aiModelEntity;
+                    }
+                }
+                predictVO.setType(wanted.getType());
+                predictVO.setVersion(wanted.getVersion());
+                return predictVO;
+            }
+        } catch (IOException e) {
+            log.error("e = ", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+    }
+
+    /**
+     * 用模型预测sentence，预测分为两个步骤，第一步获取参数，第二步使用参数预测结果
+     *
+     * @param shortName
+     * @param sentence
+     * @return
+     */
+    @PostMapping("/{shortName}/predict")
+    public ResultVO predict(@PathVariable("shortName") String shortName,
                             @RequestBody String sentence) {
-        ModelEntity modelEntity = modelRepository.findByName(modelName).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+
+        // 将sentence打包成PredictVO
+        PredictVO predictVO = unpackSentence(shortName, sentence);
+        // 获取对应的实例
+        AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                predictVO.getType(),
+                predictVO.getShortName(),
+                predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        // 将modelParam转化为ModelParamVO
+        ModelParamVO modelParamVO = null;
+        try {
+            modelParamVO = objectMapper.readValue(aiModelEntity.getParam(), ModelParamVO.class);
+        } catch (IOException e) {
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
         long beforeGetParams = 0L;
         long afterGetParams = 0L;
         long beforeDoPredict = 0L;
         long afterDoPredict = 0L;
-        if (modelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
+        if (aiModelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
             // mleap的模型
 
             // 首先获取参数
             String params = null;
             try {
                 beforeGetParams = System.currentTimeMillis();
-                params = getParams(sentence, modelEntity.getType(), modelEntity.getParam());
+                params = getParams(predictVO.getSentence(), aiModelEntity.getType(), modelParamVO);
                 afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -127,7 +181,8 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-                ps = doPredict(params, "/mleap/" + modelName + "/transform");
+                // todo 这里的路径需要修改
+                ps = doPredict(params, "/mleap/" + shortName + "/transform");
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -137,14 +192,14 @@ public class ModelController {
                     afterGetParams - beforeGetParams,
                     afterDoPredict - beforeDoPredict));
 
-        } else if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+        } else if (aiModelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
             // tensorflow的模型
 
             // 首先获取参数
             String params = null;
             try {
                 beforeGetParams = System.currentTimeMillis();
-                params = getParams(sentence, modelEntity.getType(), modelEntity.getParam());
+                params = getParams(predictVO.getSentence(), aiModelEntity.getType(), modelParamVO);
                 afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 ResultUtils.error(ResultEnum.GET_PARAMS_ERROR);
@@ -157,7 +212,8 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-                ps = doPredict(params, "/tensorflow/" + modelName + "/v1/models/" + modelName + ":predict");
+                // todo 这里的路径需要修改
+                ps = doPredict(params, "/tensorflow/" + shortName + "/v1/models/" + shortName + ":predict");
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -165,57 +221,57 @@ public class ModelController {
             }
 
             // TODO 每增加一个模型，需要增加一个分支
-            if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
+            if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
                 // 脏话模型的结果
                 return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
                 // 情感分析的结果
                 return ResultUtils.success(getTensorflowSentimentAnalysisPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode()) {
                 // 是否税务问题模型的结果
                 return ResultUtils.success(getTensorflowIsTaxIssuePredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
                 // 是否是ap_bilstm模型的结果
                 return ResultUtils.success(getTensorflowApBilstmPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
                 // 是否是reranking模型的结果
                 return ResultUtils.success(getTensorflowRerankingPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
                 // 社保模型的结果
                 return ResultUtils.success(getTensorflowSocialSecurityResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
                 // 三分类模型的结果
                 return ResultUtils.success(getTensorflowFirstAllResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode()) {
                 // 综合模型
                 return ResultUtils.success(getTensorflowSynthesisResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
                 // 城管模型
                 return ResultUtils.success(getTensorflowCityManagementResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
                 // 智能咨询-场景分类模型
                 return ResultUtils.success(getTensorflowZnzxParams(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
+            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
                 // 是否是bert_match模型的结果
                 return ResultUtils.success(getTensorflowBertMatchPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -225,8 +281,8 @@ public class ModelController {
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             }
-        } else if (modelEntity.getType() == ModelTypeEnum.COMPOSE.getCode()) {
-            String[] modelsArray = modelEntity.getCompose().split(",");
+        } else if (aiModelEntity.getType() == ModelTypeEnum.COMPOSE.getCode()) {
+            String[] modelsArray = modelParamVO.getCompose().split(",");
             String result = sentence;
             // 依次调用模型
             ResultVO resultVO = null;
@@ -284,31 +340,31 @@ public class ModelController {
         return wordCut;
     }
 
-    private String getRawPythonTensorflowParams(String sentence, int paramCode, String other, int maxLength) {
-        try {
-            URI uri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(customConfig.getBridgeIp())
-                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/params/transformer")
-                    .build();
-            HttpPost httpPost = new HttpPost(uri);
-            List<NameValuePair> formparams = new ArrayList<>();
-            formparams.add(new BasicNameValuePair("sentence", sentence));
-            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(paramCode)));
-            formparams.add(new BasicNameValuePair("other", other));
-            formparams.add(new BasicNameValuePair("maxLength", String.valueOf(maxLength)));
-            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
-            httpPost.setEntity(formEntity);
-
-            CloseableHttpResponse response = httpClient.execute(httpPost);
-            HttpEntity entity = response.getEntity();
-            String res = EntityUtils.toString(entity);
-            return res;
-        } catch (Exception e) {
-            log.error("e = {}", e);
-            return null;
-        }
-    }
+//    private String getRawPythonTensorflowParams(String sentence, int paramCode, String other, int maxLength) {
+//        try {
+//            URI uri = new URIBuilder()
+//                    .setScheme("http")
+//                    .setHost(customConfig.getBridgeIp())
+//                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/params/transformer")
+//                    .build();
+//            HttpPost httpPost = new HttpPost(uri);
+//            List<NameValuePair> formparams = new ArrayList<>();
+//            formparams.add(new BasicNameValuePair("sentence", sentence));
+//            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(paramCode)));
+//            formparams.add(new BasicNameValuePair("other", other));
+//            formparams.add(new BasicNameValuePair("maxLength", String.valueOf(maxLength)));
+//            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
+//            httpPost.setEntity(formEntity);
+//
+//            CloseableHttpResponse response = httpClient.execute(httpPost);
+//            HttpEntity entity = response.getEntity();
+//            String res = EntityUtils.toString(entity);
+//            return res;
+//        } catch (Exception e) {
+//            log.error("e = {}", e);
+//            return null;
+//        }
+//    }
 
     /**
      * 通过Java获取社保模型Tensorflow前处理后的参数
@@ -398,6 +454,87 @@ public class ModelController {
             answer = answer.subList(0, maxLength);
         }
         return answer;
+    }
+
+    private String getRawJavaTensorflowParams(String sentence, ModelParamVO modelParamVO) {
+        if (modelParamVO.getRemovePunctuation() != null && modelParamVO.getRemovePunctuation().booleanValue()) {
+            // 替换掉标点符号
+            sentence.replaceAll("\\W", "");
+        }
+
+        // 这里我不知道怎么切割出单个字和完整的数字，所以我先全部切成单个，切完再处理成完整的数字
+        String[] words = sentence.split("");
+        List<String> wordList = new ArrayList<>();
+        wordList.add("[CLS]");
+        StringBuilder number = new StringBuilder();
+        for (String word : words) {
+            if (org.apache.commons.lang3.StringUtils.isNumeric(word)) {
+                // 数字先放到缓冲区缓存起来
+                number.append(word);
+            } else {
+                if (!StringUtils.isEmpty(number.toString())) {
+                    // 将之前缓存的数字放入list中
+                    wordList.add(number.toString());
+                    // 清除缓存的数字
+                    number.setLength(0);
+                }
+                wordList.add(word);
+            }
+        }
+        if (!StringUtils.isEmpty(number.toString())) {
+            // 将之前缓存的数字放入list中
+            wordList.add(number.toString());
+            // 清除缓存的数字
+            number.setLength(0);
+        }
+        wordList.add("[SEP]");
+
+        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
+        List<Integer> integerList = wordList.stream().map(word -> {
+            Integer integer = dictMap.get(word);
+            if (integer == null) {
+                return dictMap.get("[UNK]");
+            } else {
+                return integer;
+            }
+        }).collect(Collectors.toList());
+
+        List<Integer> inputIds = new ArrayList<>();
+        List<Integer> inputMask = new ArrayList<>();
+        List<Integer> segmentIds = new ArrayList<>();
+        if (integerList.size() > modelParamVO.getLength()) {
+            // 如果integerList长度太长，则它第128个元素置为结束符
+            integerList.set(modelParamVO.getLength() - 1, integerList.get(integerList.size() - 1));
+        } else if (integerList.size() < modelParamVO.getLength()) {
+            // 如果integerList长度不够，则需要补零
+            for (int i = integerList.size(); i < modelParamVO.getLength(); i++) {
+                integerList.add(0);
+            }
+        }
+        for (int i = 0; i < modelParamVO.getLength(); i++) {
+            int t = integerList.get(i);
+            inputIds.add(t);
+            if (t > 0) {
+                inputMask.add(1);
+            } else {
+                inputMask.add(0);
+            }
+            segmentIds.add(0);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("input_ids", inputIds);
+        result.put("input_mask", inputMask);
+        if (modelParamVO.getHaveLabelIds() != null && modelParamVO.getHaveLabelIds().booleanValue()) {
+            result.put("label_ids", 0);
+        }
+        result.put("segment_ids", segmentIds);
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (JsonProcessingException e) {
+            log.error("e = {}", e);
+            return "";
+        }
     }
 
     /**
@@ -611,62 +748,64 @@ public class ModelController {
      * 获取tensorflow向量
      *
      * @param sentence
-     * @param paramCode
+     * @param modelParamVO
      * @return
      */
     @GetMapping("/getRawTensorflowParams")
-    public String getRawTensorflowParams(String sentence, int paramCode) {
+    public String getRawTensorflowParams(String sentence, ModelParamVO modelParamVO) {
+        return getRawJavaTensorflowParams(sentence, modelParamVO);
+
         // TODO 每增加一个模型，需要添加一段代码逻辑
-        if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
-                paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
-                paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
-            return getRawJavaTensorflowParams(sentence, paramCode, 128);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
-            // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
-            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
-            return getRawJavaTensorflowParams(sentence, paramCode, 84);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
-            // 问答模型处理很复杂
-            String result = getRawPythonTensorflowParams(sentence, paramCode, "", 120);
-            try {
-                JsonNode jsonNode = objectMapper.readTree(result);
-                ArrayNode answer_ = (ArrayNode) jsonNode.get("answer_");
-                ArrayNode probability = (ArrayNode) jsonNode.get("probability");
-                ArrayNode question_ = (ArrayNode) jsonNode.get("question_");
-
-                StringBuilder stringBuilder = new StringBuilder();
-
-                int size = answer_.size();
-                for (int i = 0; i < size; i++) {
-                    stringBuilder.append("{");
-                    stringBuilder.append("\"answer\":");
-                    stringBuilder.append(objectMapper.writeValueAsString(answer_.get(i)));
-                    stringBuilder.append(",\"question\":");
-                    stringBuilder.append(objectMapper.writeValueAsString(question_.get(i)));
-                    stringBuilder.append(",\"probability\":[");
-                    stringBuilder.append(probability.get(i).asText());
-                    stringBuilder.append("]},");
-                }
-                return stringBuilder.substring(0, stringBuilder.length() - 1);
-            } catch (IOException e) {
-                log.error("e = {}", e);
-            }
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
-            // 社保是512长度
-            return getRawPythonTensorflowParams(sentence, paramCode, "", 512);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode() ||
-                paramCode == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode() ||
-                paramCode == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
-            // 三分类和综合模型都是300长度
-            return getRawPythonTensorflowParams(sentence, paramCode, "", 300);
-        } else if (paramCode == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
-            // 智能咨询模型长度是128
-            return getRawPythonTensorflowParams(sentence, paramCode, "", 128);
-        }
-
-        log.error("unknown paramCode = {}", paramCode);
-        return null;
+//        if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
+//                paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
+//                paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+//            return getRawJavaTensorflowParams(sentence, paramCode, 128);
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+//            // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
+//            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
+//            return getRawJavaTensorflowParams(sentence, paramCode, 84);
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
+//            // 问答模型处理很复杂
+//            String result = getRawPythonTensorflowParams(sentence, paramCode, "", 120);
+//            try {
+//                JsonNode jsonNode = objectMapper.readTree(result);
+//                ArrayNode answer_ = (ArrayNode) jsonNode.get("answer_");
+//                ArrayNode probability = (ArrayNode) jsonNode.get("probability");
+//                ArrayNode question_ = (ArrayNode) jsonNode.get("question_");
+//
+//                StringBuilder stringBuilder = new StringBuilder();
+//
+//                int size = answer_.size();
+//                for (int i = 0; i < size; i++) {
+//                    stringBuilder.append("{");
+//                    stringBuilder.append("\"answer\":");
+//                    stringBuilder.append(objectMapper.writeValueAsString(answer_.get(i)));
+//                    stringBuilder.append(",\"question\":");
+//                    stringBuilder.append(objectMapper.writeValueAsString(question_.get(i)));
+//                    stringBuilder.append(",\"probability\":[");
+//                    stringBuilder.append(probability.get(i).asText());
+//                    stringBuilder.append("]},");
+//                }
+//                return stringBuilder.substring(0, stringBuilder.length() - 1);
+//            } catch (IOException e) {
+//                log.error("e = {}", e);
+//            }
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
+//            // 社保是512长度
+//            return getRawPythonTensorflowParams(sentence, paramCode, "", 512);
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode() ||
+//                paramCode == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode() ||
+//                paramCode == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
+//            // 三分类和综合模型都是300长度
+//            return getRawPythonTensorflowParams(sentence, paramCode, "", 300);
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
+//            // 智能咨询模型长度是128
+//            return getRawPythonTensorflowParams(sentence, paramCode, "", 128);
+//        }
+//
+//        log.error("unknown paramCode = {}", paramCode);
+//        return null;
     }
 
     /**
@@ -679,19 +818,19 @@ public class ModelController {
     @GetMapping("/getMLeapParams")
     public String getMLeapParams(String sentence, int paramCode) {
         String res = getRawMLeapParams(sentence, paramCode);
-        return "{\"schema\":{\"fields\":[{\"name\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
+        return "{\"schema\":{\"fields\":[{\"shortName\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
     }
 
     /**
      * 获取喂给tensorflow的数据
      *
      * @param sentence
-     * @param paramCode
+     * @param modelParamVO
      * @return
      */
     @GetMapping("/getTensorflowParams")
-    public String getTensorflowParams(String sentence, int paramCode) {
-        String res = getRawTensorflowParams(sentence, paramCode);
+    public String getTensorflowParams(String sentence, ModelParamVO modelParamVO) {
+        String res = getRawTensorflowParams(sentence, modelParamVO);
         return "{\"instances\": [" + res + "]}";
     }
 
@@ -699,22 +838,23 @@ public class ModelController {
      * 获取参数
      * <p>
      * 如果是mleap，首先访问mleap-params-transformer获取到分词，然后拼成
-     * {"schema":{"fields":[{"name":"word","type":"string"}]},"rows":[["增值税 的 税率 是 多少"]]}
+     * {"schema":{"fields":[{"shortName":"word","type":"string"}]},"rows":[["增值税 的 税率 是 多少"]]}
      * <p>
      * 如果是tensorflow的脏话模型，首先访问tensorflow-dirtyword-params-transformer获取到向量，然后拼成
      * {"instances": [{"input_ids":[101,4318,1673,7027,1402,679,1139,6496,4280,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"input_mask":[1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"label_ids":0,"segment_ids":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
      *
      * @param sentence
      * @param modelType
-     * @param modelParam
+     * @param modelParamVO
      * @return
      * @throws Exception
      */
-    private String getParams(String sentence, int modelType, int modelParam) throws Exception {
+    private String getParams(String sentence, int modelType, ModelParamVO modelParamVO) {
+        // 获取参数
         if (modelType == ModelTypeEnum.MLEAP.getCode()) {
-            return getMLeapParams(sentence, modelParam);
+            return getMLeapParams(sentence, modelParamVO.getParamCode().intValue());
         } else if (modelType == ModelTypeEnum.TENSORFLOW.getCode()) {
-            return getTensorflowParams(sentence, modelParam);
+            return getTensorflowParams(sentence, modelParamVO);
         } else {
             log.error("unknown modelType = {}", modelType);
             throw new AlgorithmException(ResultEnum.UNKNOWN_MODEL_TYPE);

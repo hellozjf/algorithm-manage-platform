@@ -1,10 +1,14 @@
 package com.zrar.algorithm;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huaban.analysis.jieba.JiebaSegmenter;
+import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.messages.Container;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -28,8 +32,20 @@ import java.util.List;
 @RunWith(SpringRunner.class)
 @SpringBootTest
 @Slf4j
-@ActiveProfiles("unittest")
 public class AlgorithmManagePlatformApplicationTests {
+
+    @Autowired
+    private DockerClient dockerClient;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    public void listAllContainers() throws Exception {
+        List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+        String s = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(containerList);
+        log.debug("s = {}", s);
+    }
 
     @Test
     public void testDemo() {
