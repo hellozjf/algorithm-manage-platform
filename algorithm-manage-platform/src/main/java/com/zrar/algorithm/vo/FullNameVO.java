@@ -40,7 +40,7 @@ public class FullNameVO {
     /**
      * 名称
      */
-    private String name;
+    private String shortName;
 
     /**
      * 版本
@@ -48,7 +48,7 @@ public class FullNameVO {
     private int version;
 
     /**
-     * 通过前缀-类型-名称-版本号，获取FullName
+     * 通过前缀-类型-名称-版本号，获取FullNameVO
      * @param fullName
      * @return
      */
@@ -59,20 +59,20 @@ public class FullNameVO {
         fullNameVO.prefix = parts[0];
         fullNameVO.strType = parts[1];
         fullNameVO.iType = ModelTypeEnum.getCodeByDesc(fullNameVO.strType);
-        fullNameVO.name = String.join("-", Arrays.copyOfRange(parts, 2, parts.length - 1));
+        fullNameVO.shortName = String.join("-", Arrays.copyOfRange(parts, 2, parts.length - 1));
         fullNameVO.version = Integer.valueOf(parts[parts.length - 1]);
         return fullNameVO;
     }
 
     /**
-     * 通过类型、名称、版本号获取FullName
+     * 通过类型、名称、版本号获取FullNameVO
      * @param type
-     * @param name
+     * @param shortName
      * @param version
      * @return
      */
-    public static FullNameVO getByTypeNameVersion(int type, String name, int version) {
-        String fullName = String.join("-", dockerPrefix, ModelTypeEnum.getDescByCode(type), name, String.valueOf(version));
+    public static FullNameVO getByTypeNameVersion(int type, String shortName, int version) {
+        String fullName = String.join("-", dockerPrefix, ModelTypeEnum.getDescByCode(type), shortName, String.valueOf(version));
         return getByFullName(fullName);
     }
 }

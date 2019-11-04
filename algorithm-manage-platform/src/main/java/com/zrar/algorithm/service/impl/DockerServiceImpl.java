@@ -4,8 +4,10 @@ import cn.hutool.core.util.RuntimeUtil;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.messages.*;
 import com.zrar.algorithm.constant.ModelTypeEnum;
+import com.zrar.algorithm.constant.ResultEnum;
 import com.zrar.algorithm.constant.StateEnum;
 import com.zrar.algorithm.domain.AiModelEntity;
+import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.AiModelRepository;
 import com.zrar.algorithm.service.*;
 import com.zrar.algorithm.vo.FullNameVO;
@@ -95,7 +97,7 @@ public class DockerServiceImpl implements DockerService {
                     // 判断数据库中是否有对应的记录
                     if (!aiModelRepository.findByTypeAndShortNameAndVersion(
                             containerNameVO.getIType(),
-                            containerNameVO.getName(),
+                            containerNameVO.getShortName(),
                             containerNameVO.getVersion()).isPresent()) {
                         log.error("找不到文件{}对应的数据库记录，这可能是个脏文件", file.getName());
                         continue;
@@ -103,7 +105,7 @@ public class DockerServiceImpl implements DockerService {
                     // 有的话把该记录取出来
                     AiModelEntity modelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                             containerNameVO.getIType(),
-                            containerNameVO.getName(),
+                            containerNameVO.getShortName(),
                             containerNameVO.getVersion()
                     ).get();
                     // 如果是tensorflow类型的模型，还需要进行解压
@@ -233,6 +235,15 @@ public class DockerServiceImpl implements DockerService {
                     .build();
 
             ContainerCreation container = dockerClient.createContainer(containerConfig, fullName);
+
+            // 这里还需要把端口同步到数据库中
+            AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                    fullNameVO.getIType(),
+                    fullNameVO.getShortName(),
+                    fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.JSON_ERROR));
+            aiModelEntity.setPort(Integer.valueOf(randomPort.get(0).hostPort()));
+            aiModelRepository.save(aiModelEntity);
+
             return container;
         } else {
             return null;

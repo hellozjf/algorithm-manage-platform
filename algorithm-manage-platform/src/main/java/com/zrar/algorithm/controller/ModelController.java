@@ -28,17 +28,13 @@ import com.zrar.algorithm.vo.PredictResultVO;
 import com.zrar.algorithm.vo.PredictVO;
 import com.zrar.algorithm.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -156,10 +152,12 @@ public class ModelController {
             throw new AlgorithmException(ResultEnum.JSON_ERROR);
         }
 
+        // 要记录getParam和doPredict所需要花费的时间
         long beforeGetParams = 0L;
         long afterGetParams = 0L;
         long beforeDoPredict = 0L;
         long afterDoPredict = 0L;
+
         if (aiModelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
             // mleap的模型
 
@@ -167,7 +165,7 @@ public class ModelController {
             String params = null;
             try {
                 beforeGetParams = System.currentTimeMillis();
-                params = getParams(predictVO.getSentence(), aiModelEntity.getType(), modelParamVO);
+                params = getMLeapParams(predictVO.getSentence(), modelParamVO.getParamCode());
                 afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -181,8 +179,8 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-                // todo 这里的路径需要修改
-                ps = doPredict(params, "/mleap/" + shortName + "/transform");
+                ps = doMLeapPredict(aiModelEntity.getPort(), params);
+//                ps = doPredict(params, "/mleap/" + shortName + "/transform");
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -199,7 +197,8 @@ public class ModelController {
             String params = null;
             try {
                 beforeGetParams = System.currentTimeMillis();
-                params = getParams(predictVO.getSentence(), aiModelEntity.getType(), modelParamVO);
+                params = getTensorflowParams(predictVO.getSentence(), modelParamVO);
+//                params = getParams(predictVO.getSentence(), aiModelEntity.getType(), modelParamVO);
                 afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 ResultUtils.error(ResultEnum.GET_PARAMS_ERROR);
@@ -212,8 +211,8 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-                // todo 这里的路径需要修改
-                ps = doPredict(params, "/tensorflow/" + shortName + "/v1/models/" + shortName + ":predict");
+//                ps = doPredict(params, "/tensorflow/" + shortName + "/v1/models/" + shortName + ":predict");
+                ps = doTensorflowPredict(aiModelEntity.getPort(), shortName, params);
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -489,6 +488,7 @@ public class ModelController {
         }
         wordList.add("[SEP]");
 
+        // 将文字转化为坐标值
         Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
         List<Integer> integerList = wordList.stream().map(word -> {
             Integer integer = dictMap.get(word);
@@ -861,20 +861,66 @@ public class ModelController {
         }
     }
 
+//    /**
+//     * 调用tensorflow/serving或mleap-serving预测结果
+//     *
+//     * @param params
+//     * @param path
+//     * @return
+//     * @throws Exception
+//     */
+//    private String doPredict(String params, String path) throws Exception {
+//
+//        URI uri = new URIBuilder()
+//                .setScheme("http")
+//                .setHost("localhost")
+//                .setPort(customConfig.getBridgePort())
+//                .setPath(path)
+//                .build();
+//        HttpPost httpPost = new HttpPost(uri);
+//        StringEntity stringEntity = new StringEntity(params, ContentType.APPLICATION_JSON);
+//        httpPost.setEntity(stringEntity);
+//        CloseableHttpResponse response = httpClient.execute(httpPost);
+//        HttpEntity entity = response.getEntity();
+//        return EntityUtils.toString(entity);
+//    }
+
     /**
-     * 调用tensorflow/serving或mleap-serving预测结果
-     *
+     * 调用mleap-serving获取结果
+     * @param port
      * @param params
-     * @param path
      * @return
      * @throws Exception
      */
-    private String doPredict(String params, String path) throws Exception {
+    private String doMLeapPredict(int port, String params) throws Exception {
         URI uri = new URIBuilder()
                 .setScheme("http")
-                .setHost(customConfig.getBridgeIp())
-                .setPort(customConfig.getBridgePort())
-                .setPath(path)
+                .setHost("localhost")
+                .setPort(port)
+                .setPath("/transform")
+                .build();
+        HttpPost httpPost = new HttpPost(uri);
+        StringEntity stringEntity = new StringEntity(params, ContentType.APPLICATION_JSON);
+        httpPost.setEntity(stringEntity);
+        CloseableHttpResponse response = httpClient.execute(httpPost);
+        HttpEntity entity = response.getEntity();
+        return EntityUtils.toString(entity);
+    }
+
+    /**
+     * 调用tensorflow-serving获取结果
+     * @param port
+     * @param shortName
+     * @param params
+     * @return
+     * @throws Exception
+     */
+    private String doTensorflowPredict(int port, String shortName, String params) throws Exception {
+        URI uri = new URIBuilder()
+                .setScheme("http")
+                .setHost("localhost")
+                .setPort(port)
+                .setPath("/v1/models/" + shortName + ":predict")
                 .build();
         HttpPost httpPost = new HttpPost(uri);
         StringEntity stringEntity = new StringEntity(params, ContentType.APPLICATION_JSON);
@@ -984,7 +1030,8 @@ public class ModelController {
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
         // 这次调用主要是在tensorflow-param中生成一个文件
-        getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode(), ps, 120);
+        // todo 这里不知道怎么改
+//        getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode(), ps, 120);
         long afterPost = System.currentTimeMillis();
 
         // 预测结果无返回
@@ -1096,7 +1143,8 @@ public class ModelController {
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
         // 这次调用主要是在tensorflow-param中生成一个文件
-        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_RERANKING.getCode(), ps, 120);
+        // todo 这里不知道怎么改
+//        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_RERANKING.getCode(), ps, 120);
         long afterPost = System.currentTimeMillis();
 
         // 预测结果类似
@@ -1110,14 +1158,15 @@ public class ModelController {
         //    ]
         // ]
         ArrayNode arrayNode = null;
-        try {
-            ArrayNode a1 = (ArrayNode) objectMapper.readTree(result);
-            if (a1 != null && a1.size() == 1) {
-                arrayNode = (ArrayNode) a1.get(0);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+//        try {
+            // todo 这里不知道怎么改
+//            ArrayNode a1 = (ArrayNode) objectMapper.readTree(result);
+//            if (a1 != null && a1.size() == 1) {
+//                arrayNode = (ArrayNode) a1.get(0);
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
 
         JsonNode paramsNode = null;
         try {

@@ -11,9 +11,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class RemoteServiceImpl implements RemoteService {
 
-    @Autowired
-    private CustomConfig customConfig;
-
     @Override
     public String createExecCommand(String cmd) {
         String command = "ssh root@" + customConfig.getBridgeIp()

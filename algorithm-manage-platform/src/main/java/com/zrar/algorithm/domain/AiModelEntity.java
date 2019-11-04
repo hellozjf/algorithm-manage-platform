@@ -76,5 +76,5 @@ public class AiModelEntity extends BaseEntity {
     /**
      * 模型服务的端口
      */
-    private String port;
+    private int port;
 }

@@ -129,7 +129,7 @@ public class MLeapServiceImpl implements MLeapService {
         FullNameVO fullNameVO = FullNameVO.getByFullName(fullName);
         AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                 fullNameVO.getIType(),
-                fullNameVO.getName(),
+                fullNameVO.getShortName(),
                 fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         String url = "http://localhost:" + aiModelEntity.getPort() + "/" + type;
         return url;
