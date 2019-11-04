@@ -1,5 +1,7 @@
 package com.zrar.algorithm.config;
 
+import cn.hutool.crypto.digest.DigestAlgorithm;
+import cn.hutool.crypto.digest.Digester;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.spotify.docker.client.DefaultDockerClient;
@@ -12,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
@@ -27,11 +30,7 @@ import java.time.Duration;
 @Slf4j
 public class BeanConfig {
 
-    @Value("${custom.docker.rest.ip}")
-    private String dockerRestIp;
-
-    @Value("${custom.docker.rest.port}")
-    private Integer dockerRestPort;
+    private CustomDockerConfig customDockerConfig;
 
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder restTemplateBuilder) {
@@ -60,7 +59,14 @@ public class BeanConfig {
     @Bean
     public DockerClient dockerClient() {
         return DefaultDockerClient.builder()
-                .uri(URI.create("http://" + dockerRestIp + ":" + dockerRestPort))
+                .uri(URI.create("http://" + customDockerConfig.getRestIp() + ":" + customDockerConfig.getRestPort()))
                 .build();
+    }
+
+    @Bean("md5")
+    @Primary
+    public Digester md5() {
+        Digester md5 = new Digester(DigestAlgorithm.MD5);
+        return md5;
     }
 }

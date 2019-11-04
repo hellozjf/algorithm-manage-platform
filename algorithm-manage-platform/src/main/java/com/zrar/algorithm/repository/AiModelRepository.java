@@ -21,6 +21,14 @@ public interface AiModelRepository extends JpaRepository<AiModelEntity, String> 
     Optional<AiModelEntity> findByTypeAndShortNameAndVersion(int type, String shortName, int version);
 
     /**
+     * 通过类型、名称，获取版本号最大的一条实体记录
+     * @param type
+     * @param shortName
+     * @return
+     */
+    Optional<AiModelEntity> findTopByTypeAndShortNameOrderByVersionDesc(int type, String shortName);
+
+    /**
      * 找出所有模型名称叫做name的实体
      * @param shortName
      * @return

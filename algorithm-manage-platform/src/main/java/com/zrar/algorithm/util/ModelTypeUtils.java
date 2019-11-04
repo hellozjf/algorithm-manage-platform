@@ -15,7 +15,7 @@ public class ModelTypeUtils {
     public static String getDescByCode(int code) {
         for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
             if (modelTypeEnum.getCode() == code) {
-                return modelTypeEnum.getDesc();
+                return modelTypeEnum.getDescription();
             }
         }
         return null;

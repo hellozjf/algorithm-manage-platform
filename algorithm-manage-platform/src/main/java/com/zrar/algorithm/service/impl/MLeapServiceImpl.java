@@ -8,6 +8,7 @@ import com.zrar.algorithm.domain.AiModelEntity;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.AiModelRepository;
 import com.zrar.algorithm.service.FileService;
+import com.zrar.algorithm.service.FullNameService;
 import com.zrar.algorithm.service.MLeapService;
 import com.zrar.algorithm.vo.FullNameVO;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,9 @@ public class MLeapServiceImpl implements MLeapService {
 
     @Autowired
     private AiModelRepository aiModelRepository;
+
+    @Autowired
+    private FullNameService fullNameService;
 
     @Override
     public String online(String fullName) {
@@ -126,7 +130,7 @@ public class MLeapServiceImpl implements MLeapService {
      * @return
      */
     private String getUrl(String fullName, String type) {
-        FullNameVO fullNameVO = FullNameVO.getByFullName(fullName);
+        FullNameVO fullNameVO = fullNameService.getByFullName(fullName);
         AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                 fullNameVO.getIType(),
                 fullNameVO.getShortName(),

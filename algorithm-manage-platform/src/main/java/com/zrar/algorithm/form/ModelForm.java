@@ -1,12 +1,8 @@
 package com.zrar.algorithm.form;
 
-import com.zrar.algorithm.validator.ModelNameConstraint;
-import com.zrar.algorithm.validator.ModelParamConstraint;
 import com.zrar.algorithm.validator.ModelTypeConstraint;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.validation.constraints.NotBlank;
 
 /**
  * 数据库中，模型的实体类
@@ -24,17 +20,14 @@ public class ModelForm {
 
     /**
      * 模型的名称，例如sw、yyth、qgfx……
-     * 实际的模型文件后面需要加.zip后缀
-     * 模型的名称也是后续algorithm-bridge需要的模型的路径
+     * 实际的模型文件为 前缀+类型+名称+版本.zip
      */
-    @NotBlank(message = "模型名称不能为空")
-    @ModelNameConstraint(message = "模型名已存在")
-    private String name;
+    private String shortName;
 
     /**
      * 模型描述
      */
-    private String desc;
+    private String description;
 
     /**
      * 模型类型，目前支持mleap和tensorflow
@@ -45,15 +38,26 @@ public class ModelForm {
 
     /**
      * 模型参数
-     * 如果模型类型是mleap，则支持切词、切词——税务专有词、切短语
-     * 如果模型类型是tensorflow，则支持脏话
-     * @see com.zrar.algorithm.constant.ModelParamEnum
      */
-    @ModelParamConstraint(message = "模型参数不合法")
-    private Integer param;
+    private String param;
 
     /**
-     * 模型组合
+     * 版本号
      */
-    private String compose;
+    private Integer version;
+
+    /**
+     * 模型状态
+     */
+    private String state;
+
+    /**
+     * 端口
+     */
+    private Integer port;
+
+    /**
+     * 版本号是否增加
+     */
+    private Boolean bNewVersion;
 }

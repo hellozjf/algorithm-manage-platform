@@ -1,6 +1,7 @@
 package com.zrar.algorithm.service.impl;
 
-import com.zrar.algorithm.config.CustomConfig;
+import com.zrar.algorithm.config.CustomDockerConfig;
+import com.zrar.algorithm.config.CustomWorkdirConfig;
 import com.zrar.algorithm.service.FileService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,34 +15,38 @@ import org.springframework.stereotype.Service;
 public class FileServiceImpl implements FileService {
 
     @Autowired
-    private CustomConfig customConfig;
+    private CustomDockerConfig customDockerConfig;
+
+    @Autowired
+    private CustomWorkdirConfig customWorkdirConfig;
 
     /**
-     * 根据模型名称，获取模型所在宿主机的路径
-     * @param modelName
+     * 根据完整模型名称，获取模型所在开发环境的路径
+     * @param fullName
      * @return
      */
     @Override
-    public String getModelOutterPath(String modelName) {
-        return customConfig.getModelOuterPath() + "/" + modelName + ".zip";
+    public String getModelPath(String fullName) {
+        return customWorkdirConfig.getModel() + "/" + fullName + ".zip";
+    }
+
+    /**
+     * 根据模型名称，获取模型所在docker主机的路径
+     * @param fullName
+     * @return
+     */
+    @Override
+    public String getModelOutterPath(String fullName) {
+        return customDockerConfig.getModelOutter() + "/" + fullName + ".zip";
     }
 
     /**
      * 根据模型名称，获取模型所在docker容器内的路径
-     * @param modelName
+     * @param fullName
      * @return
      */
     @Override
-    public String getModelInnerPath(String modelName) {
-        return customConfig.getModelInnerPath() + "/" + modelName + ".zip";
-    }
-
-    /**
-     * 获取docker-compose.yml文件的路径
-     * @return
-     */
-    @Override
-    public String getDockerComposeYmlPath() {
-        return customConfig.getDockerComposePath();
+    public String getModelInnerPath(String fullName) {
+        return customDockerConfig.getModelInner() + "/" + fullName + ".zip";
     }
 }

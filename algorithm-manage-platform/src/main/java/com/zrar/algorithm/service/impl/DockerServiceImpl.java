@@ -3,6 +3,8 @@ package com.zrar.algorithm.service.impl;
 import cn.hutool.core.util.RuntimeUtil;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.messages.*;
+import com.zrar.algorithm.config.CustomDockerConfig;
+import com.zrar.algorithm.config.CustomWorkdirConfig;
 import com.zrar.algorithm.constant.ModelTypeEnum;
 import com.zrar.algorithm.constant.ResultEnum;
 import com.zrar.algorithm.constant.StateEnum;
@@ -13,7 +15,6 @@ import com.zrar.algorithm.service.*;
 import com.zrar.algorithm.vo.FullNameVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -44,19 +45,22 @@ public class DockerServiceImpl implements DockerService {
     private RemoteService remoteService;
 
     @Autowired
+    private FullNameService fullNameService;
+
+    @Autowired
     private DockerClient dockerClient;
 
     @Autowired
     private ImageService imageService;
 
     @Autowired
-    private ContainerService containerService;
+    private FullNameService containerService;
 
-    @Value("${spring.profiles.active}")
-    private String active;
+    @Autowired
+    private CustomDockerConfig customDockerConfig;
 
-    @Value("${custom.model-outer-path}")
-    private String modelOuterPath;
+    @Autowired
+    private CustomWorkdirConfig customWorkdirConfig;
 
     /**
      * 是否已经启动
@@ -69,19 +73,20 @@ public class DockerServiceImpl implements DockerService {
         isStarted = false;
 
         try {
-            // 创建宿主机模型文件夹
-            File folder = new File(modelOuterPath);
+            // 创建工作主机模型文件夹
+            File folder = new File(customWorkdirConfig.getModel());
             if (!folder.exists()) {
                 folder.mkdirs();
             }
             // 开发环境，在开发服务器上新建模型文件夹，同时把模型拷贝到开发服务器上面去
-            if (active.equalsIgnoreCase("dev")) {
-                String cmd = remoteService.createExecCommand("mkdir -p /opt/docker/algorithm-manage-platform/models");
+            if (customWorkdirConfig.isNeedCopy()) {
+                // 如果需要拷贝，就将模型文件夹从 工作主机 拷贝到 docker宿主机
+                String cmd = remoteService.createExecCommand("mkdir -p " + customDockerConfig.getModelOutter());
                 String result = RuntimeUtil.execForStr(cmd);
                 log.debug("{} return {}", cmd, result);
 
                 // todo 这里要验证一下，如果当前这个模型正在被使用，这样拷贝有没有什么问题
-                cmd = remoteService.createScpRCommand(modelOuterPath + "/*", "/opt/docker/algorithm-manage-platform/models/");
+                cmd = remoteService.createScpRCommand(customWorkdirConfig.getModel() + "/*", customDockerConfig.getModelOutter());
                 result = RuntimeUtil.execForStr(cmd);
                 log.debug("{} return {}", cmd, result);
             }
@@ -91,9 +96,9 @@ public class DockerServiceImpl implements DockerService {
             for (File file : files) {
                 if (file.isFile()) {
                     String fullName = file.getName().split("\\.")[0];
-                    log.debug("shortName = {}", fullName);
+                    log.debug("fullName = {}", fullName);
                     // 从完整的名称中拆分出 前缀-类型-名称-版本
-                    FullNameVO containerNameVO = FullNameVO.getByFullName(fullName);
+                    FullNameVO containerNameVO = fullNameService.getByFullName(fullName);
                     // 判断数据库中是否有对应的记录
                     if (!aiModelRepository.findByTypeAndShortNameAndVersion(
                             containerNameVO.getIType(),
@@ -120,7 +125,7 @@ public class DockerServiceImpl implements DockerService {
             List<AiModelEntity> aiModelEntityList = aiModelRepository.findAll();
             for (AiModelEntity aiModelEntity : aiModelEntityList) {
                 boolean bFind = false;
-                FullNameVO fullNameVO = containerService.getFullName(aiModelEntity);
+                FullNameVO fullNameVO = containerService.getFullNameByAiModelEntity(aiModelEntity);
                 for (Container container : containerList) {
                     if (isContainerNameEquals(container, fullNameVO.getFullName())) {
                         bFind = true;
@@ -168,16 +173,20 @@ public class DockerServiceImpl implements DockerService {
         return isStarted;
     }
 
+    /**
+     * 解压zip包
+     * @param fullName
+     */
     @Override
     public void unpackModel(String fullName) {
-        if (active.equalsIgnoreCase("dev")) {
+        if (customWorkdirConfig.isNeedCopy()) {
             // 开发环境，进入远程服务器，解压模型
-            String cmd = remoteService.createExecCommand("cd /opt/docker/algorithm-manage-platform/models/; unzip -o " + fullName + ".zip -d " + fullName);
+            String cmd = remoteService.createExecCommand("cd " + customDockerConfig.getModelOutter() + "; unzip -o " + fullName + ".zip -d " + fullName);
             String result = RuntimeUtil.execForStr(cmd);
             log.debug("{} return {}", cmd, result);
         } else {
             // 生产环境，进入宿主机模型目录，解压模型
-            String cmd = "unzip -o " + modelOuterPath + "/" + fullName + ".zip -d " + modelOuterPath + "/" + fullName;
+            String cmd = "unzip -o " + customDockerConfig.getModelOutter() + "/" + fullName + ".zip -d " + customDockerConfig.getModelOutter() + "/" + fullName;
             String result = RuntimeUtil.execForStr(cmd);
             log.debug("{} return {}", cmd, result);
         }
@@ -206,7 +215,7 @@ public class DockerServiceImpl implements DockerService {
         deleteDocker(fullName);
 
         // 首先查出待创建的容器所需的镜像和端口
-        FullNameVO fullNameVO = FullNameVO.getByFullName(fullName);
+        FullNameVO fullNameVO = fullNameService.getByFullName(fullName);
         String image = null;
         int port = -1;
         if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
@@ -263,7 +272,7 @@ public class DockerServiceImpl implements DockerService {
             if (isContainerNameEquals(container, fullName)) {
                 dockerClient.startContainer(container.id());
 
-                FullNameVO fullNameVO = FullNameVO.getByFullName(fullName);
+                FullNameVO fullNameVO = fullNameService.getByFullName(fullName);
                 if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
                     // 还要把mleap模型上线
                     String modelPath = fileService.getModelOutterPath(fullName);

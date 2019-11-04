@@ -30,7 +30,10 @@ public enum ResultEnum {
     CMD_ERROR(19, "命令错误"),
     FORM_ERROR(20, "表单错误"),
     LOAD_STOP_WORD_ERROR(21, "加载停用词失败"),
-    ;
+    RESTART_DOCKER_ERROR(22, "重启docker失败"),
+    CREATE_DOCKER_ERROR(23, "创建docker容器失败"),
+    START_DOCKER_ERROR(24, "启动docker容器失败"),
+    DELETE_DOCKER_ERROR(25, "删除docker容器失败");
 
     Integer code;
     String message;

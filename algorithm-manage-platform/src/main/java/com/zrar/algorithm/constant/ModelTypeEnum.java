@@ -19,10 +19,10 @@ public enum ModelTypeEnum {
      * @param code
      * @return
      */
-    public static String getDescByCode(int code) {
+    public static String getDescriptionByCode(int code) {
         for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
             if (modelTypeEnum.getCode() == code) {
-                return modelTypeEnum.getDesc();
+                return modelTypeEnum.getDescription();
             }
         }
         return "";
@@ -33,9 +33,9 @@ public enum ModelTypeEnum {
      * @param desc
      * @return
      */
-    public static int getCodeByDesc(String desc) {
+    public static int getCodeByDescription(String desc) {
         for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
-            if (modelTypeEnum.getDesc().equalsIgnoreCase(desc)) {
+            if (modelTypeEnum.getDescription().equalsIgnoreCase(desc)) {
                 return modelTypeEnum.getCode();
             }
         }
@@ -43,5 +43,5 @@ public enum ModelTypeEnum {
     }
 
     int code;
-    String desc;
+    String description;
 }
