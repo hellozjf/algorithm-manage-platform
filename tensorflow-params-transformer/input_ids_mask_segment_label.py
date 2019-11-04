@@ -2,6 +2,7 @@ import csv
 import os
 import pickle
 import re
+import json
 
 import collections
 import jieba
@@ -373,6 +374,33 @@ def post_processing(probs, csv_file):
     return output
 
 
+def get_sim(v1,v2):
+    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+
+
+def get_result(extend_em,stand_em_dict):
+    k_values={key:get_sim(extend_em,v) for key,v in stand_em_dict.items()}
+    result=sorted(k_values.items(),key=lambda x:x[1],reverse=True)[0][0]
+    return result
+
+
+def deployment(pk, text):
+    with open(pk,'rb') as f:
+        stand_em_dict=pickle.load(f)
+    array = json.loads(text)
+    return get_result(array,stand_em_dict)
+
+
+def get(x):
+    return map_dict[x]
+
+
+def predictString(csv, text):
+    data = pd.read_csv(csv)
+    map_dict = {i: j for i, j in zip(data['standard_question'], data['answer'])}
+    return map_dict[text]
+
+
 # 生成参数
 @app.route('/getParams', methods=['POST'])
 def getParams():
@@ -422,6 +450,11 @@ def getParams():
             # reranking数据后处理
             output = post_processing(eval(other), CANDIDATE_CSV)
             return jsonify(output)
+    elif int(paramCode) == 111:
+        if other == 'rawQuestion':
+            return deployment('data/bert_match/stand_em_.pk', sentence)
+        elif other == 'predictString':
+            return predictString('data/bert_match/train_set.csv', sentence)
     else:
         if int(paramCode) == 102:
             # 参考ModelParamEnum.java，102是情感分析模型，需要去除标点

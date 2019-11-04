@@ -217,9 +217,12 @@ public class ModelController {
                         afterDoPredict - beforeDoPredict));
             } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
                 // 是否是bert_match模型的结果
-                return ResultUtils.success(getTensorflowBertMatchPredictResultVO(ps, sentence, params,
+                return ResultUtils.success(getRemoteBertMatchPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
+//                return ResultUtils.success(getTensorflowBertMatchPredictResultVO(ps, sentence, params,
+//                        afterGetParams - beforeGetParams,
+//                        afterDoPredict - beforeDoPredict));
             } else {
                 return ResultUtils.success(getTensorflowResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -868,6 +871,74 @@ public class ModelController {
         return predictResultVO;
     }
 
+
+
+    /**
+     * 获取返回的AP_BILSTM模型预测结果VO
+     *
+     * @param ps              喂给tensorflow模型后预测的结果
+     * @param sentence        原始问题
+     * @param params          原始问题的预处理结果
+     * @param getParamsCostMs 预处理耗费的时间
+     * @param predictCostMs   预测耗费的时间
+     * @return
+     */
+    private Object getRemoteBertMatchPredictResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+
+
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        ArrayNode arrayNode1 = (ArrayNode) arrayNode.get(0);
+
+        String rawQuestion = null;
+        String predictString = null;
+        // 首先拿着ps去查询
+        long beforePost = System.currentTimeMillis();
+        try {
+            String text = objectMapper.writeValueAsString(arrayNode1);
+            rawQuestion = getRawPythonTensorflowParams(text, ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode(), "rawQuestion", 120);
+            if (! StringUtils.isEmpty(rawQuestion)) {
+                rawQuestion = rawQuestion.trim();
+            }
+            predictString = getRawPythonTensorflowParams(rawQuestion, ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode(), "predictString", 0);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        log.debug("str = {}", rawQuestion);
+        // 先将预测结果转化为JsonNode
+        long afterPost = System.currentTimeMillis();
+
+        // 预测结果无返回
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredict(null);
+        predictResultVO.setPredictString(predictString);
+        predictResultVO.setRawQuestion(rawQuestion);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        predictResultVO.setPostCostMs(afterPost - beforePost);
+        predictResultVO.setDockerResult(ps);
+        predictResultVO.setNextInput(sentence);
+
+        return predictResultVO;
+    }
+
     /**
      * 获取返回的AP_BILSTM模型预测结果VO
      *
@@ -895,26 +966,27 @@ public class ModelController {
 
         String rawQuestion = null;
         String predictString = null;
+
+        // 首先拿着ps去查询
+        long beforePost = System.currentTimeMillis();
         try {
             String text = objectMapper.writeValueAsString(arrayNode1);
             rawQuestion = RuntimeUtil.execForStr("python",
-                    "python/ap_bilstm/deployment.py",
-                    "python/ap_bilstm/stand_em_.pk",
+                    "python/bert_match/deployment.py",
+                    "python/bert_match/stand_em_.pk",
                     text);
             if (! StringUtils.isEmpty(rawQuestion)) {
                 rawQuestion = rawQuestion.trim();
             }
             predictString = RuntimeUtil.execForStr("python",
-                    "python/ap_bilstm/get_result.py",
-                    "python/ap_bilstm/train_set.csv",
+                    "python/bert_match/get_result.py",
+                    "python/bert_match/train_set.csv",
                     rawQuestion);
         } catch (Exception e) {
             log.error("e = {}", e);
         }
         log.debug("str = {}", rawQuestion);
 
-        // 首先拿着ps去查询
-        long beforePost = System.currentTimeMillis();
         // 先将预测结果转化为JsonNode
         long afterPost = System.currentTimeMillis();
 
