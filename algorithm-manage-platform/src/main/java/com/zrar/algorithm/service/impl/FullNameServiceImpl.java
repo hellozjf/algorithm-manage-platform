@@ -22,7 +22,7 @@ public class FullNameServiceImpl implements FullNameService {
     private CustomDockerConfig customDockerConfig;
 
     @Override
-    public FullNameVO getFullNameByAiModelEntity(AiModelEntity aiModelEntity) {
+    public FullNameVO getByAiModelEntity(AiModelEntity aiModelEntity) {
         return getByTypeNameVersion(aiModelEntity.getType(), aiModelEntity.getShortName(), aiModelEntity.getVersion());
     }
 

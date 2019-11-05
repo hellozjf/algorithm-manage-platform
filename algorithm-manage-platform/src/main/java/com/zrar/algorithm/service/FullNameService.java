@@ -16,7 +16,7 @@ public interface FullNameService {
      * @param aiModelEntity
      * @return
      */
-    FullNameVO getFullNameByAiModelEntity(AiModelEntity aiModelEntity);
+    FullNameVO getByAiModelEntity(AiModelEntity aiModelEntity);
 
     /**
      * 通过前缀-类型-名称-版本号，获取FullNameVO

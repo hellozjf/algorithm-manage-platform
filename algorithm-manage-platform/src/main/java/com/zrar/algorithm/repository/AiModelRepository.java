@@ -34,4 +34,11 @@ public interface AiModelRepository extends JpaRepository<AiModelEntity, String> 
      * @return
      */
     List<AiModelEntity> findByShortName(String shortName);
+
+    /**
+     * 根据端口寻找实体
+     * @param port
+     * @return
+     */
+    List<AiModelEntity> findByPort(int port);
 }

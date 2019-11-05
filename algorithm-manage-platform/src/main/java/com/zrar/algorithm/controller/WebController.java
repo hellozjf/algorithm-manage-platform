@@ -140,7 +140,7 @@ public class WebController {
     @PostMapping("/restartModel")
     public ResultVO restartModel(String id) {
         AiModelEntity modelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        FullNameVO fullNameVO = fullNameService.getFullNameByAiModelEntity(modelEntity);
+        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(modelEntity);
         try {
             dockerService.restartDocker(fullNameVO.getFullName());
         } catch (Exception e) {
@@ -342,7 +342,7 @@ public class WebController {
 
         // 获取新的aiModelEntity
         AiModelEntity aiModelEntity = getAiModelEntity(modelForm, shortName, type, version, bRenewVersion);
-        FullNameVO fullNameVO = fullNameService.getFullNameByAiModelEntity(aiModelEntity);
+        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
 
         // 组合类型的记录，只添加数据库记录
         if (modelForm.getType() == ModelTypeEnum.COMPOSE.getCode()) {
@@ -428,7 +428,7 @@ public class WebController {
         String[] idArray = ids.split(",");
         for (String id : idArray) {
             AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-            FullNameVO fullNameVO = fullNameService.getFullNameByAiModelEntity(aiModelEntity);
+            FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
             try {
                 dockerService.deleteDocker(fullNameVO.getFullName());
             } catch (Exception e) {
@@ -445,7 +445,7 @@ public class WebController {
 
         // 将模型文件读取到byte数组中
         AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        FullNameVO fullNameVO = fullNameService.getFullNameByAiModelEntity(aiModelEntity);
+        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
         String modelFilePath = fileService.getModelOutterPath(fullNameVO.getFullName());
         File file = new File(modelFilePath);
         byte[] bytes = null;
@@ -480,7 +480,7 @@ public class WebController {
         int version = modelForm.getVersion().intValue();
         boolean bNewVersion = modelForm.getBNewVersion().booleanValue();
         AiModelEntity aiModelEntity = getAiModelEntity(modelForm, shortName, type, version, bNewVersion);
-        FullNameVO fullNameVO = fullNameService.getFullNameByAiModelEntity(aiModelEntity);
+        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
 
         // 组合类型的记录，只添加数据库记录
         if (aiModelEntity.getType() == ModelTypeEnum.COMPOSE.getCode()) {
