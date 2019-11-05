@@ -75,46 +75,6 @@ public class DockerServiceImpl implements DockerService {
             if (!folder.exists()) {
                 folder.mkdirs();
             }
-//            if (customWorkdirConfig.isNeedCopy()) {
-//                // 如果需要拷贝，就在docker宿主机上也创建模型目录
-//                String cmd = remoteService.createExecCommand("mkdir -p " + customDockerConfig.getModelOutter());
-//                String result = RuntimeUtil.execForStr(cmd);
-//                log.debug("{} return {}", cmd, result);
-
-            // todo 这里要验证一下，如果当前这个模型正在被使用，这样拷贝有没有什么问题
-//                cmd = remoteService.createScpRCommand(customWorkdirConfig.getModel() + "/*", customDockerConfig.getModelOutter());
-//                result = RuntimeUtil.execForStr(cmd);
-//                log.debug("{} return {}", cmd, result);
-//            }
-
-            // 解压tensorflow模型
-//            File[] files = folder.listFiles();
-//            for (File file : files) {
-//                if (file.isFile()) {
-//                    String fullName = file.getName().split("\\.")[0];
-//                    log.debug("fullName = {}", fullName);
-//                    // 从完整的名称中拆分出 前缀-类型-名称-版本
-//                    FullNameVO containerNameVO = fullNameService.getByFullName(fullName);
-//                    // 判断数据库中是否有对应的记录
-//                    if (!aiModelRepository.findByTypeAndShortNameAndVersion(
-//                            containerNameVO.getIType(),
-//                            containerNameVO.getShortName(),
-//                            containerNameVO.getVersion()).isPresent()) {
-//                        log.error("找不到文件{}对应的数据库记录，这可能是个脏文件", file.getName());
-//                        continue;
-//                    }
-//                    // 有的话把该记录取出来
-//                    AiModelEntity modelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
-//                            containerNameVO.getIType(),
-//                            containerNameVO.getShortName(),
-//                            containerNameVO.getVersion()
-//                    ).get();
-//                    // 如果是tensorflow类型的模型，还需要进行解压
-//                    if (modelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
-//                        unpackModel(fullName);
-//                    }
-//                }
-//            }
 
             // 将当前容器的状态与数据库的记录进行同步
             List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
@@ -139,7 +99,9 @@ public class DockerServiceImpl implements DockerService {
                 if (!bFind) {
                     // 数据库中有，但是容器中没有，那么就要重新创建一个容器
                     createDocker(fullNameVO.getFullName());
-                    startDocker(fullNameVO.getFullName());
+                    if (aiModelEntity.getState().equalsIgnoreCase(StateEnum.RUNNING.getState())) {
+                        startDocker(fullNameVO.getFullName());
+                    }
                 }
             }
 
@@ -158,7 +120,7 @@ public class DockerServiceImpl implements DockerService {
      * @return
      */
     private boolean isContainerNameEquals(Container container, String fullName) {
-        String containerName = container.names().get(0);
+        String containerName = container.names().get(0).substring(1);
         return containerName.equalsIgnoreCase(fullName);
     }
 
@@ -174,15 +136,19 @@ public class DockerServiceImpl implements DockerService {
      */
     @Override
     public void unpackModel(String fullName) {
+        File file = new File(fileService.getModelWorkFilePath(fullName));
+
+        ZipUtil.unzip(file);
         if (customWorkdirConfig.isNeedCopy()) {
-            // 开发环境，进入远程服务器，解压模型
-            String cmd = remoteService.createExecCommand("cd " + customDockerConfig.getModelOutter() + "; unzip -o " + fullName + ".zip -d " + fullName);
+            // 首先删除docker宿主机的模型目录
+            String cmd = remoteService.createExecCommand("rm -rf " + fileService.getModelOutterFolderPath(fullName));
             String result = RuntimeUtil.execForStr(cmd);
             log.debug("{} return {}", cmd, result);
-        } else {
-            // 生产环境，进入宿主机模型目录，解压模型
-            String cmd = "unzip -o " + customDockerConfig.getModelOutter() + "/" + fullName + ".zip -d " + customDockerConfig.getModelOutter() + "/" + fullName;
-            String result = RuntimeUtil.execForStr(cmd);
+            // 把解压后的tensorflow模型拷贝到 docker宿主机的模型目录
+            cmd = remoteService.createScpRCommand(
+                    fileService.getModelWorkFolderPath(fullName),
+                    fileService.getModelOutterFolderPath(fullName));
+            result = RuntimeUtil.execForStr(cmd);
             log.debug("{} return {}", cmd, result);
         }
     }
@@ -204,7 +170,8 @@ public class DockerServiceImpl implements DockerService {
      *
      * @return
      */
-    private int getRandomPort() {
+    @Override
+    public int getRandomPort() {
         int minPort = customDockerConfig.getPortRangeMin();
         int maxPort = customDockerConfig.getPortRangeMax();
         do {
@@ -300,6 +267,14 @@ public class DockerServiceImpl implements DockerService {
                     mLeapService.online(fullName);
                 }
 
+                // 数据库修改模型的状态
+                AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                        fullNameVO.getIType(),
+                        fullNameVO.getShortName(),
+                        fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+                aiModelEntity.setState(StateEnum.RUNNING.getState());
+                aiModelRepository.save(aiModelEntity);
+
                 break;
             }
         }
@@ -316,7 +291,7 @@ public class DockerServiceImpl implements DockerService {
     private void checkEnvironment(FullNameVO fullNameVO) {
         if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
             // 检查模型文件是否存在
-            File file = new File(customWorkdirConfig.getModel(), fullNameVO.getFullName() + ".zip");
+            File file = new File(fileService.getModelWorkFilePath(fullNameVO.getFullName()));
             if (!file.exists() || !file.isFile()) {
                 throw new AlgorithmException(ResultEnum.MODEL_FILE_NOT_EXIST_ERROR);
             }
@@ -328,7 +303,7 @@ public class DockerServiceImpl implements DockerService {
             }
         } else if (fullNameVO.getIType() == ModelTypeEnum.TENSORFLOW.getCode()) {
             // 检查模型文件是否存在
-            File file = new File(customWorkdirConfig.getModel(), fullNameVO.getFullName() + ".zip");
+            File file = new File(fileService.getModelWorkFilePath(fullNameVO.getFullName()));
             if (!file.exists() || !file.isFile()) {
                 throw new AlgorithmException(ResultEnum.MODEL_FILE_NOT_EXIST_ERROR);
             }
@@ -338,17 +313,7 @@ public class DockerServiceImpl implements DockerService {
                 FileUtil.del(folder);
             }
             // 解压文件
-            ZipUtil.unzip(file);
-            if (customWorkdirConfig.isNeedCopy()) {
-                // 首先删除docker宿主机的模型目录
-                String cmd = remoteService.createExecCommand("rm -rf " + customDockerConfig.getModelOutter() + "/" + fullNameVO.getFullName());
-                String result = RuntimeUtil.execForStr(cmd);
-                log.debug("{} return {}", cmd, result);
-                // 把解压后的tensorflow模型拷贝到 docker宿主机的模型目录
-                cmd = remoteService.createScpRCommand(folder.getAbsolutePath(), customDockerConfig.getModelOutter());
-                result = RuntimeUtil.execForStr(cmd);
-                log.debug("{} return {}", cmd, result);
-            }
+            unpackModel(fullNameVO.getFullName());
         } else {
             log.error("unknown type {}", fullNameVO.getIType());
             throw new AlgorithmException(ResultEnum.UNKNOWN_MODEL_TYPE);
@@ -361,7 +326,7 @@ public class DockerServiceImpl implements DockerService {
         List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
         for (Container container : containerList) {
             if (isContainerNameEquals(container, fullName)) {
-                dockerClient.stopContainer(container.id(), 10);
+                dockerClient.stopContainer(container.id(), 2);
                 if (fullNameVO.getIType() == ModelTypeEnum.TENSORFLOW.getCode()) {
                     // tensorflow模型就把对应的文件夹删了吧
                     File folder = new File(customWorkdirConfig.getModel(), fullNameVO.getFullName());
@@ -375,6 +340,15 @@ public class DockerServiceImpl implements DockerService {
                         log.debug("{} return {}", cmd, result);
                     }
                 }
+
+                // 数据库修改模型的状态
+                AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                        fullNameVO.getIType(),
+                        fullNameVO.getShortName(),
+                        fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+                aiModelEntity.setState(StateEnum.EXITED.getState());
+                aiModelRepository.save(aiModelEntity);
+
                 break;
             }
         }
@@ -391,7 +365,7 @@ public class DockerServiceImpl implements DockerService {
         List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
         for (Container container : containerList) {
             if (isContainerNameEquals(container, fullName)) {
-                dockerClient.stopContainer(container.id(), 10);
+                stopDocker(fullName);
                 dockerClient.removeContainer(container.id());
                 break;
             }

@@ -26,10 +26,8 @@ public interface DockerService {
     /**
      * 解压模型
      * @param fullName
-     * @throws IOException
-     * @throws InterruptedException
      */
-    void unpackModel(String fullName) throws IOException, InterruptedException;
+    void unpackModel(String fullName);
 
     /**
      * 重启docker容器
@@ -44,6 +42,13 @@ public interface DockerService {
      * @throws Exception
      */
     ContainerCreation recreateDocker(String fullName) throws Exception;
+
+    /**
+     * 从minPort ~ maxPort之间寻找一个未被使用的端口
+     *
+     * @return
+     */
+    int getRandomPort();
 
     /**
      * 创建docker容器

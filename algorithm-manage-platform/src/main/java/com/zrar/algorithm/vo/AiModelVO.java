@@ -1,6 +1,5 @@
-package com.zrar.algorithm.form;
+package com.zrar.algorithm.vo;
 
-import com.zrar.algorithm.validator.ModelTypeConstraint;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -11,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Data
-public class ModelForm {
+public class AiModelVO {
 
     /**
      * 模型的编号
@@ -33,13 +32,12 @@ public class ModelForm {
      * 模型类型，目前支持mleap和tensorflow
      * @see com.zrar.algorithm.constant.ModelTypeEnum
      */
-    @ModelTypeConstraint(message = "模型类型不合法")
     private Integer type;
 
     /**
      * 模型参数
      */
-    private String param;
+    private ModelParamVO param;
 
     /**
      * 版本号
@@ -59,5 +57,5 @@ public class ModelForm {
     /**
      * 版本号是否增加
      */
-    private Boolean bNewVersion;
+    private Boolean newVersion;
 }

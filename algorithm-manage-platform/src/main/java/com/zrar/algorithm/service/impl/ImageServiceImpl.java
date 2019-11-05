@@ -1,6 +1,8 @@
 package com.zrar.algorithm.service.impl;
 
+import com.zrar.algorithm.config.CustomDockerConfig;
 import com.zrar.algorithm.service.ImageService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,8 +14,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class ImageServiceImpl implements ImageService {
 
-    @Value("${custom.harbor-ip}")
-    private String harborIp;
+    @Autowired
+    private CustomDockerConfig customDockerConfig;
 
     /**
      * 获取mleap镜像名称
@@ -21,7 +23,7 @@ public class ImageServiceImpl implements ImageService {
      */
     @Override
     public String getMleap() {
-        return harborIp + "/zrar/mleap-serving:0.9.0-SNAPSHOT";
+        return customDockerConfig.getHarborIp() + "/zrar/mleap-serving:0.9.0-SNAPSHOT";
     }
 
     /**
@@ -30,6 +32,6 @@ public class ImageServiceImpl implements ImageService {
      */
     @Override
     public String getTensorflow() {
-        return harborIp + "/zrar/tensorflow-serving:1.14.0";
+        return customDockerConfig.getHarborIp() + "/zrar/tensorflow-serving:1.14.0";
     }
 }

@@ -20,14 +20,29 @@ public class FileServiceImpl implements FileService {
     @Autowired
     private CustomWorkdirConfig customWorkdirConfig;
 
+    @Override
+    public String getModelWorkFolderPath(String fullName) {
+        return customWorkdirConfig.getModel() + "/" + fullName;
+    }
+
     /**
      * 根据完整模型名称，获取模型所在开发环境的路径
      * @param fullName
      * @return
      */
     @Override
-    public String getModelPath(String fullName) {
+    public String getModelWorkFilePath(String fullName) {
         return customWorkdirConfig.getModel() + "/" + fullName + ".zip";
+    }
+
+    /**
+     * 根据完整模型名称，获取模型所在开发环境的路径
+     * @param fullName
+     * @return
+     */
+    @Override
+    public String getModelOutterFolderPath(String fullName) {
+        return customWorkdirConfig.getModel() + "/" + fullName;
     }
 
     /**
@@ -36,7 +51,7 @@ public class FileServiceImpl implements FileService {
      * @return
      */
     @Override
-    public String getModelOutterPath(String fullName) {
+    public String getModelOutterFilePath(String fullName) {
         return customDockerConfig.getModelOutter() + "/" + fullName + ".zip";
     }
 
@@ -46,7 +61,7 @@ public class FileServiceImpl implements FileService {
      * @return
      */
     @Override
-    public String getModelInnerPath(String fullName) {
+    public String getModelInnerFilePath(String fullName) {
         return customDockerConfig.getModelInner() + "/" + fullName + ".zip";
     }
 }

@@ -70,9 +70,6 @@ public class ModelController {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Value("${spring.profiles.active}")
-    private String active;
-
     @Autowired
     private CloseableHttpClient httpClient;
 

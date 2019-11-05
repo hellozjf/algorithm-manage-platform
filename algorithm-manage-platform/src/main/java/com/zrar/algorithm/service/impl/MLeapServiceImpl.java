@@ -51,7 +51,7 @@ public class MLeapServiceImpl implements MLeapService {
                 String url = getOnlineUrl(fullName);
                 // 模型的位置
                 ObjectNode objectNode = objectMapper.createObjectNode();
-                objectNode.put("path", fileService.getModelInnerPath(fullName));
+                objectNode.put("path", fileService.getModelInnerFilePath(fullName));
                 String requestBody = null;
                 try {
                     requestBody = objectMapper.writeValueAsString(objectNode);

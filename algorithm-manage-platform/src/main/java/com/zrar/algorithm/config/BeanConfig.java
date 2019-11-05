@@ -10,6 +10,7 @@ import com.spotify.docker.client.DockerClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,7 @@ import java.time.Duration;
 @Slf4j
 public class BeanConfig {
 
+    @Autowired
     private CustomDockerConfig customDockerConfig;
 
     @Bean
@@ -41,6 +43,7 @@ public class BeanConfig {
     }
 
     @Bean
+    @Primary
     public ObjectMapper objectMapper() {
         return new ObjectMapper();
     }
