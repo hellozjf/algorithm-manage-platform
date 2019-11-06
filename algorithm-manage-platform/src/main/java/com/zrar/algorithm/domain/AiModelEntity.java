@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.Table;
 
 /**
  * 数据库中，模型的实体类
@@ -14,6 +15,7 @@ import javax.persistence.Entity;
 @Slf4j
 @Data
 @Entity
+@Table(name = "ai_model")
 public class AiModelEntity extends BaseEntity {
 
     /**

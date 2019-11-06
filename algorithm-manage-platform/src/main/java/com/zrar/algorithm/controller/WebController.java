@@ -366,7 +366,7 @@ public class WebController {
      */
     @Transactional(rollbackFor = Exception.class)
     @PostMapping("/delModel")
-    public ResultVO delModel(@RequestBody String ids) {
+    public ResultVO delModel(@RequestParam String ids) {
         String[] idArray = ids.split(",");
         for (String id : idArray) {
             AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));

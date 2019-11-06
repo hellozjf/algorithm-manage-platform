@@ -37,7 +37,10 @@ public enum ResultEnum {
     STOP_DOCKER_ERROR(26, "关闭docker容器失败"),
     RECREATE_DOCKER_ERROR(27, "重新创建docker容器失败"),
     MODEL_FILE_NOT_EXIST_ERROR(28, "模型文件不存在"),
-    MODEL_EXIST_CANNOT_ADD_ERROR(29, "模型已存在，无法新建");
+    MODEL_EXIST_CANNOT_ADD_ERROR(29, "模型已存在，无法新建"),
+    CAN_NOT_FIND_DICT_ERROR(30, "找不到数据字典项"),
+    CAN_NOT_FIND_DICT_DETAIL_ERROR(31, "找不到数据字典详情项"),
+    ;
 
     Integer code;
     String message;
