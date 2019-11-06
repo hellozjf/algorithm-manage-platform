@@ -8,7 +8,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zrar.algorithm.config.CustomDockerConfig;
 import com.zrar.algorithm.config.CustomWorkdirConfig;
-import com.zrar.algorithm.constant.ModelParamEnum;
 import com.zrar.algorithm.constant.ModelTypeEnum;
 import com.zrar.algorithm.constant.ResultEnum;
 import com.zrar.algorithm.constant.StateEnum;
@@ -37,7 +36,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 页面上所使用的controller
@@ -287,6 +285,11 @@ public class WebController {
         int version = aiModelVO.getVersion().intValue();
         boolean bRenewVersion = aiModelVO.getNewVersion().booleanValue();
 
+        if (aiModelRepository.findTopByTypeAndShortNameOrderByVersionDesc(type, shortName).isPresent()) {
+            // 如果根据type和shortName能够找到模型，说明模型已经存在至少一个版本了，就不允许再新增
+            return ResultUtils.error(ResultEnum.MODEL_EXIST_CANNOT_ADD_ERROR);
+        }
+
         // 获取新的aiModelEntity
         AiModelEntity aiModelEntity = getAiModelEntity(aiModelVO, shortName, type, version, bRenewVersion);
         // 设置参数
@@ -375,6 +378,14 @@ public class WebController {
                 throw new AlgorithmException(ResultEnum.DELETE_DOCKER_ERROR);
             }
             aiModelRepository.delete(aiModelEntity);
+            // 把模型文件也一起删了
+            File file = new File(fileService.getModelWorkFilePath(fullNameVO.getFullName()));
+            file.delete();
+            if (customWorkdirConfig.isNeedCopy()) {
+                String cmd = remoteService.createExecCommand("rm -f " + fileService.getModelOutterFilePath(fullNameVO.getFullName()));
+                String result = RuntimeUtil.execForStr(cmd);
+                log.error("{} return {}", cmd, result);
+            }
         }
         return ResultUtils.success();
     }
