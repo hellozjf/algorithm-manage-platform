@@ -38,5 +38,12 @@ public interface FileService {
      * @param fullName
      * @return
      */
+    String getModelInnerFolderPath(String fullName);
+
+    /**
+     * 根据模型名称，获取模型所在docker容器内的路径
+     * @param fullName
+     * @return
+     */
     String getModelInnerFilePath(String fullName);
 }

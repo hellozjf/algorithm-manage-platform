@@ -42,7 +42,7 @@ public class FileServiceImpl implements FileService {
      */
     @Override
     public String getModelOutterFolderPath(String fullName) {
-        return customWorkdirConfig.getModel() + "/" + fullName;
+        return customDockerConfig.getModelOutter() + "/" + fullName;
     }
 
     /**
@@ -53,6 +53,16 @@ public class FileServiceImpl implements FileService {
     @Override
     public String getModelOutterFilePath(String fullName) {
         return customDockerConfig.getModelOutter() + "/" + fullName + ".zip";
+    }
+
+    /**
+     * 根据模型名称，获取模型所在docker容器内的路径
+     * @param fullName
+     * @return
+     */
+    @Override
+    public String getModelInnerFolderPath(String fullName) {
+        return customDockerConfig.getModelInner() + "/" + fullName;
     }
 
     /**

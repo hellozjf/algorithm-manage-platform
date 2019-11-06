@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.zrar.algorithm.config.CustomDockerConfig;
 import com.zrar.algorithm.constant.ModelParamEnum;
 import com.zrar.algorithm.constant.ModelTypeEnum;
 import com.zrar.algorithm.constant.ResultEnum;
@@ -18,15 +19,13 @@ import com.zrar.algorithm.dto.Indexes;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.AiModelRepository;
 import com.zrar.algorithm.service.DictMapService;
+import com.zrar.algorithm.service.FullNameService;
 import com.zrar.algorithm.service.StopWordService;
 import com.zrar.algorithm.util.JiebaUtils;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
 import com.zrar.algorithm.util.WordUtils;
-import com.zrar.algorithm.vo.ModelParamVO;
-import com.zrar.algorithm.vo.PredictResultVO;
-import com.zrar.algorithm.vo.PredictVO;
-import com.zrar.algorithm.vo.ResultVO;
+import com.zrar.algorithm.vo.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -81,6 +80,12 @@ public class ModelController {
 
     @Autowired
     private AiModelRepository aiModelRepository;
+
+    @Autowired
+    private CustomDockerConfig customDockerConfig;
+
+    @Autowired
+    private FullNameService fullNameService;
 
     /**
      * 将body体里面的文本进行解析，解析成PredictVO对象
@@ -141,6 +146,7 @@ public class ModelController {
                 predictVO.getType(),
                 predictVO.getShortName(),
                 predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
         // 将modelParam转化为ModelParamVO
         ModelParamVO modelParamVO = null;
         try {
@@ -209,7 +215,7 @@ public class ModelController {
             try {
                 beforeDoPredict = System.currentTimeMillis();
 //                ps = doPredict(params, "/tensorflow/" + shortName + "/v1/models/" + shortName + ":predict");
-                ps = doTensorflowPredict(aiModelEntity.getPort(), shortName, params);
+                ps = doTensorflowPredict(aiModelEntity.getPort(), fullNameVO.getFullName(), params);
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -892,7 +898,7 @@ public class ModelController {
     private String doMLeapPredict(int port, String params) throws Exception {
         URI uri = new URIBuilder()
                 .setScheme("http")
-                .setHost("localhost")
+                .setHost(customDockerConfig.getRestIp())
                 .setPort(port)
                 .setPath("/transform")
                 .build();
@@ -907,17 +913,17 @@ public class ModelController {
     /**
      * 调用tensorflow-serving获取结果
      * @param port
-     * @param shortName
+     * @param fullName
      * @param params
      * @return
      * @throws Exception
      */
-    private String doTensorflowPredict(int port, String shortName, String params) throws Exception {
+    private String doTensorflowPredict(int port, String fullName, String params) throws Exception {
         URI uri = new URIBuilder()
                 .setScheme("http")
-                .setHost("localhost")
+                .setHost(customDockerConfig.getRestIp())
                 .setPort(port)
-                .setPath("/v1/models/" + shortName + ":predict")
+                .setPath("/v1/models/" + fullName + ":predict")
                 .build();
         HttpPost httpPost = new HttpPost(uri);
         StringEntity stringEntity = new StringEntity(params, ContentType.APPLICATION_JSON);

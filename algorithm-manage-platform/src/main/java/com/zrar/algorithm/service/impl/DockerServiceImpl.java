@@ -308,7 +308,7 @@ public class DockerServiceImpl implements DockerService {
                 throw new AlgorithmException(ResultEnum.MODEL_FILE_NOT_EXIST_ERROR);
             }
             // 文件夹是否存在，存在的话要删除
-            File folder = new File(customWorkdirConfig.getModel(), fullNameVO.getFullName());
+            File folder = new File(fileService.getModelWorkFolderPath(fullNameVO.getFullName()));
             if (folder.exists()) {
                 FileUtil.del(folder);
             }

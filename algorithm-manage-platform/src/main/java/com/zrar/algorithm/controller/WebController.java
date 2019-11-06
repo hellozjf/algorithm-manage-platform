@@ -127,7 +127,7 @@ public class WebController {
      * @return
      */
     @PostMapping("/restartModel")
-    public ResultVO restartModel(String id) {
+    public ResultVO restartModel(@RequestParam("id") String id) {
         AiModelEntity modelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         FullNameVO fullNameVO = fullNameService.getByAiModelEntity(modelEntity);
         try {
@@ -209,72 +209,6 @@ public class WebController {
         } catch (IOException e) {
             log.error("e = {}", e);
             throw new AlgorithmException(ResultEnum.FILE_IS_WRONG.getCode(), e.getMessage());
-        }
-    }
-
-    private AiModelEntity saveToDatabase(AiModelVO modelForm, boolean isCreate, File file) {
-
-        log.debug("saveToDatabase");
-
-        AiModelEntity modelEntity = createOrUpdateModelEntity(modelForm, isCreate);
-        // 计算一下md5
-        try (InputStream inputStream = new FileInputStream(file)) {
-            modelEntity.setMd5(DigestUtils.md5DigestAsHex(inputStream));
-        } catch (IOException e) {
-            log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.FILE_IS_WRONG.getCode(), e.getMessage());
-        }
-        modelEntity = aiModelRepository.save(modelEntity);
-        return modelEntity;
-    }
-
-    private AiModelEntity createOrUpdateModelEntity(AiModelVO modelForm, boolean isCreate) {
-        AiModelEntity aiModelEntity;
-        if (isCreate) {
-            aiModelEntity = new AiModelEntity();
-            BeanUtils.copyProperties(modelForm, aiModelEntity);
-            aiModelEntity.setId(null);
-        } else {
-            aiModelEntity = aiModelRepository.findById(modelForm.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-            Date gmtCreate = aiModelEntity.getGmtCreate();
-            BeanUtils.copyProperties(modelForm, aiModelEntity);
-            aiModelEntity.setGmtCreate(gmtCreate);
-        }
-        return aiModelEntity;
-    }
-
-    private void onlineMLeap(AiModelVO modelForm) {
-
-        if (modelForm.getType() == ModelTypeEnum.MLEAP.getCode()) {
-
-            log.debug("onlineMLeap");
-
-            try {
-                String result = mLeapService.online(modelForm.getShortName());
-            } catch (Exception e) {
-                log.error("e = {}", e);
-                throw new AlgorithmException(ResultEnum.MODEL_ONLINE_FAILED.getCode(), e.getMessage());
-            }
-        }
-    }
-
-    private void deleteDocker(String name) {
-        try {
-            log.debug("正在停止{}容器", name);
-            dockerService.deleteDocker(name);
-        } catch (Exception e) {
-            log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.CMD_ERROR);
-        }
-    }
-
-    private void createDocker(String name) {
-        try {
-            log.debug("正在启动{}容器", name);
-            dockerService.createDocker(name);
-        } catch (Exception e) {
-            log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.CMD_ERROR);
         }
     }
 
@@ -408,7 +342,7 @@ public class WebController {
         return ResultUtils.success(aiModelEntity);
     }
 
-    private AiModelEntity getAiModelEntity(@Valid AiModelVO aiModelVO, String shortName, int type, int version, boolean bRenewVersion) {
+    private AiModelEntity getAiModelEntity(AiModelVO aiModelVO, String shortName, int type, int version, boolean bRenewVersion) {
         AiModelEntity aiModelEntity;
         if (bRenewVersion) {
             // 如果要更新版本号，那么根据shortName和type去数据库查找最新的记录
@@ -470,7 +404,7 @@ public class WebController {
     }
 
     @GetMapping("/downloadFile")
-    public ResponseEntity<byte[]> downloadFile(String id) {
+    public ResponseEntity<byte[]> downloadFile(@RequestParam("id") String id) {
 
         // 将模型文件读取到byte数组中
         AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
@@ -585,7 +519,7 @@ public class WebController {
      * @return
      */
     @GetMapping("/getAllModelParam")
-    public ResultVO getAllModelParam(int modelTypeCode) {
+    public ResultVO getAllModelParam(@RequestParam("modelTypeCode") int modelTypeCode) {
         List<Map<Integer, String>> mapList = new ArrayList<>();
         ModelParamEnum[] modelParamEnums = ModelParamEnum.values();
         for (ModelParamEnum modelParamEnum : modelParamEnums) {
