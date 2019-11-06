@@ -398,7 +398,10 @@ def get(x):
 def predictString(csv, text):
     data = pd.read_csv(csv)
     map_dict = {i: j for i, j in zip(data['standard_question'], data['answer'])}
-    return map_dict[text]
+    if text in map_dict.keys():
+        return map_dict[text]
+    else:
+        return ''
 
 
 # 生成参数
