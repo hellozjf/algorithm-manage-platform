@@ -35,7 +35,8 @@ public enum ResultEnum {
     START_DOCKER_ERROR(24, "启动docker容器失败"),
     DELETE_DOCKER_ERROR(25, "删除docker容器失败"),
     STOP_DOCKER_ERROR(26, "关闭docker容器失败"),
-    MODEL_FILE_NOT_EXIST_ERROR(27, "模型文件不存在");
+    RECREATE_DOCKER_ERROR(27, "重新创建docker容器失败"),
+    MODEL_FILE_NOT_EXIST_ERROR(28, "模型文件不存在");
 
     Integer code;
     String message;

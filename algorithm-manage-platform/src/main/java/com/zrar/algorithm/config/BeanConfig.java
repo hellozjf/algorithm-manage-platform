@@ -69,7 +69,7 @@ public class BeanConfig {
     @Bean("md5")
     @Primary
     public Digester md5() {
-        Digester md5 = new Digester(DigestAlgorithm.MD5);
-        return md5;
+        Digester md5Digester = new Digester(DigestAlgorithm.MD5);
+        return md5Digester;
     }
 }

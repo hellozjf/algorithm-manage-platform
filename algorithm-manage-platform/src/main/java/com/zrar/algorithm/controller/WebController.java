@@ -31,12 +31,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.validation.Valid;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -58,9 +56,6 @@ public class WebController {
     private FileService fileService;
 
     @Autowired
-    private MLeapService mLeapService;
-
-    @Autowired
     private RemoteService remoteService;
 
     @Autowired
@@ -76,7 +71,7 @@ public class WebController {
     private CustomWorkdirConfig customWorkdirConfig;
 
     @Autowired
-    private Digester md5;
+    private Digester md5Digester;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -93,20 +88,6 @@ public class WebController {
     }
 
     /**
-     * 获取easyui所需要的模型列表
-     *
-     * @return
-     */
-    @GetMapping("/getAllModelList")
-    public Map<String, Object> getAllModelList() {
-        List<AiModelEntity> aiModelEntityList = aiModelRepository.findAll();
-        Map<String, Object> map = new HashMap<>();
-        map.put("total", aiModelEntityList.size());
-        map.put("rows", aiModelEntityList);
-        return map;
-    }
-
-    /**
      * 打开编辑窗口的时候，需要获取详情
      *
      * @param id
@@ -114,28 +95,10 @@ public class WebController {
      * @return
      */
     @GetMapping("/getModel")
-    public ResultVO getModel(@RequestParam("id") String id,
-                             @RequestParam("fullName") String fullName) {
+    public ResultVO getModel(@RequestParam(name = "id", required = false) String id,
+                             @RequestParam(name = "fullName", required = false) String fullName) {
         AiModelEntity entity = getModelEntityByIdOrFullName(id, fullName);
         return ResultUtils.success(entity);
-    }
-
-    /**
-     * 重启单个容器
-     *
-     * @param id
-     * @return
-     */
-    @PostMapping("/restartModel")
-    public ResultVO restartModel(@RequestParam("id") String id) {
-        AiModelEntity modelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(modelEntity);
-        try {
-            dockerService.restartDocker(fullNameVO.getFullName());
-        } catch (Exception e) {
-            ResultUtils.error(ResultEnum.RESTART_DOCKER_ERROR);
-        }
-        return ResultUtils.success();
     }
 
     /**
@@ -145,23 +108,36 @@ public class WebController {
      */
     @GetMapping("/reboot")
     public ResultVO reboot() {
+        // 重新创建目前已经存在的所有容器
+        List<AiModelEntity> aiModelEntityList = aiModelRepository.findAll();
+        for (AiModelEntity aiModelEntity : aiModelEntityList) {
+            FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
+            try {
+                dockerService.recreateDocker(fullNameVO.getFullName());
+            } catch (Exception e) {
+                log.error("e = ", e);
+                throw new AlgorithmException(ResultEnum.RECREATE_DOCKER_ERROR);
+            }
+        }
+        // 然后全部初始化一遍
         dockerService.init();
         return ResultUtils.success();
     }
 
     /**
-     * 这个controller只有当docker相关服务全部正常启动之后才返回，避免用户刷新了页面又能进行相关操作
+     * 重启单个容器
      *
+     * @param id
      * @return
      */
-    @GetMapping("/waitForStarted")
-    public ResultVO waitForStarted() {
-        while (!dockerService.isStarted()) {
-            try {
-                TimeUnit.SECONDS.sleep(5);
-            } catch (InterruptedException e) {
-                log.error("e = {}", e);
-            }
+    @GetMapping("/restartModel")
+    public ResultVO restartModel(@RequestParam("id") String id) {
+        AiModelEntity modelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(modelEntity);
+        try {
+            dockerService.restartDocker(fullNameVO.getFullName());
+        } catch (Exception e) {
+            ResultUtils.error(ResultEnum.RESTART_DOCKER_ERROR);
         }
         return ResultUtils.success();
     }
@@ -243,7 +219,7 @@ public class WebController {
         // 将上传上来的文件保存到 工作主机的模型目录下
         saveFile(multipartFile, file, fullNameVO);
         // 更新文件md5
-        aiModelEntity.setMd5(md5.digestHex(file));
+        aiModelEntity.setMd5(md5Digester.digestHex(file));
         aiModelEntity = aiModelRepository.save(aiModelEntity);
         // 如果模型之前是在运行的，还要再把它启动回来
         if (aiModelEntity.getState().equalsIgnoreCase(StateEnum.RUNNING.getState())) {
@@ -494,60 +470,5 @@ public class WebController {
             mapList.add(map);
         }
         return ResultUtils.success(mapList);
-    }
-
-    /**
-     * 给easyui提供模型类型列表
-     *
-     * @return
-     */
-    @GetMapping("/getModelTypeList")
-    public List<Map<String, Object>> getModelTypeList() {
-        List<Map<String, Object>> mapList = new ArrayList<>();
-        for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("code", modelTypeEnum.getCode());
-            map.put("desc", modelTypeEnum.getDescription());
-            mapList.add(map);
-        }
-        return mapList;
-    }
-
-    /**
-     * 获取某个模型类型下面的所有模型参数
-     *
-     * @return
-     */
-    @GetMapping("/getAllModelParam")
-    public ResultVO getAllModelParam(@RequestParam("modelTypeCode") int modelTypeCode) {
-        List<Map<Integer, String>> mapList = new ArrayList<>();
-        ModelParamEnum[] modelParamEnums = ModelParamEnum.values();
-        for (ModelParamEnum modelParamEnum : modelParamEnums) {
-            if (modelParamEnum.getModelTypeCode() == modelTypeCode) {
-                Map<Integer, String> map = new HashMap<>();
-                map.put(modelParamEnum.getCode(), modelParamEnum.getDesc());
-                mapList.add(map);
-            }
-        }
-        return ResultUtils.success(mapList);
-    }
-
-    /**
-     * 给easyui提供模型参数列表
-     *
-     * @return
-     */
-    @GetMapping("/getModelParamList")
-    public List<Map<String, Object>> getModelParamList(int typeCode) {
-        List<Map<String, Object>> mapList = new ArrayList<>();
-        for (ModelParamEnum modelParamEnum : ModelParamEnum.values()) {
-            if (modelParamEnum.getModelTypeCode() == typeCode) {
-                Map<String, Object> map = new HashMap<>();
-                map.put("code", modelParamEnum.getCode());
-                map.put("desc", modelParamEnum.getDesc());
-                mapList.add(map);
-            }
-        }
-        return mapList;
     }
 }
