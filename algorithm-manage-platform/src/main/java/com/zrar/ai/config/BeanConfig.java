@@ -63,9 +63,9 @@ public class BeanConfig {
                 .build();
     }
 
-    @Bean("md5")
+    @Bean
     @Primary
-    public Digester md5() {
+    public Digester md5Digester() {
         Digester md5Digester = new Digester(DigestAlgorithm.MD5);
         return md5Digester;
     }

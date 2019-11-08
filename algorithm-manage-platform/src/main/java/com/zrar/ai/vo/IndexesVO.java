@@ -1,4 +1,4 @@
-package com.zrar.ai.dto;
+package com.zrar.ai.vo;
 
 import lombok.Data;
 
@@ -6,7 +6,7 @@ import lombok.Data;
  * @author Jingfeng Zhou
  */
 @Data
-public class Indexes {
+public class IndexesVO {
     private Integer indexProbability;
     private Integer indexMlType;
     private Integer indexPredict;

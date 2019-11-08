@@ -11,7 +11,7 @@ import com.zrar.ai.constant.ModelParamEnum;
 import com.zrar.ai.constant.ModelTypeEnum;
 import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.bo.AiModelBO;
-import com.zrar.ai.dto.Indexes;
+import com.zrar.ai.vo.IndexesVO;
 import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.service.CutService;
@@ -1333,7 +1333,7 @@ public class ModelController {
         }
 
         // 获取mlType和probability的index
-        Indexes indexes = JsonUtils.getIndexes(objectMapper, jsonNode);
+        IndexesVO indexes = JsonUtils.getIndexes(objectMapper, jsonNode);
         if (indexes == null || indexes.getIndexPredict() == null || indexes.getIndexProbability() == null) {
             // 如果概率，预测项目为空，返回预测错误
             // 注意预测字符串可能为空，因为晓曦的模型返回的mlType确实不存在

@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.dto.Indexes;
+import com.zrar.ai.vo.IndexesVO;
 import com.zrar.ai.exception.AlgorithmException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -95,9 +95,9 @@ public class JsonUtils {
      * @param jsonNode
      * @return
      */
-    public static Indexes getIndexes(ObjectMapper objectMapper, JsonNode jsonNode) {
+    public static IndexesVO getIndexes(ObjectMapper objectMapper, JsonNode jsonNode) {
 
-        Indexes indexes = new Indexes();
+        IndexesVO indexes = new IndexesVO();
 
         JsonNode fields = jsonNode.get("schema").get("fields");
         if (fields.isArray()) {
