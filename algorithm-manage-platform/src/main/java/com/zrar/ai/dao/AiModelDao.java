@@ -9,7 +9,7 @@ import java.util.Optional;
 /**
  * @author Jingfeng Zhou
  */
-public interface AiModelDao extends JpaRepository<AiModelBO, String> {
+public interface AiModelDao extends BaseDao<AiModelBO, String> {
 
     /**
      * 通过类型、名称、版本号获取数据库保存的实体

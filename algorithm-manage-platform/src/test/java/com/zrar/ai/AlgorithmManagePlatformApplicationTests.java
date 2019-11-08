@@ -27,10 +27,8 @@ import java.util.List;
  * Spring测试单元测试的时候，不要启动CommandLineRunner
  * https://blog.csdn.net/tengyuanjack/article/details/78438184
  */
-@RunWith(SpringRunner.class)
-@SpringBootTest
 @Slf4j
-public class AlgorithmManagePlatformApplicationTests {
+public class AlgorithmManagePlatformApplicationTests extends BaseTests {
 
     @Autowired
     private DockerClient dockerClient;

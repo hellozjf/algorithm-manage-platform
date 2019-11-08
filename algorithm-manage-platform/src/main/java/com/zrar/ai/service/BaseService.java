@@ -1,5 +1,6 @@
 package com.zrar.ai.service;
 
+import com.zrar.ai.vo.BaseQueryVO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -13,7 +14,7 @@ public interface BaseService<V> {
      * @param pageable
      * @return
      */
-    Page<V> getPage(Pageable pageable);
+    Page<V> getPage(BaseQueryVO queryVO, Pageable pageable);
 
     /**
      * 添加
@@ -34,4 +35,10 @@ public interface BaseService<V> {
      * @param vo
      */
     void delete(V vo);
+
+    /**
+     * 根据ID删除
+     * @param id
+     */
+    void deleteById(String id);
 }

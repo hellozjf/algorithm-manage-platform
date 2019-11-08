@@ -1,17 +1,14 @@
 package com.zrar.ai.controller;
 
-import com.zrar.ai.bo.DictItemBO;
-import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.exception.AlgorithmException;
-import com.zrar.ai.mapper.DictItemMapper;
-import com.zrar.ai.dao.DictItemDao;
-import com.zrar.ai.util.ResultUtils;
+import com.zrar.ai.service.DictItemService;
+import com.zrar.ai.vo.DictItemQueryVO;
 import com.zrar.ai.vo.DictItemVO;
-import com.zrar.ai.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -24,10 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class DictItemController {
 
     @Autowired
-    private DictItemDao dictItemRepository;
-
-    @Autowired
-    private DictItemMapper dictItemMapper;
+    private DictItemService dictItemService;
 
     /**
      * 查询
@@ -35,56 +29,41 @@ public class DictItemController {
      * @return
      */
     @GetMapping
-    public ResultVO getAllDictItems(Pageable pageable) {
-        Page<DictItemBO> dictItemEntityPage = dictItemRepository.findAll(pageable);
-        Page<DictItemVO> dictItemVOPage = dictItemEntityPage.map(dictItemEntity -> {
-            DictItemVO dictItemVO = dictItemMapper.toVO(dictItemEntity);
-            dictItemVO.setDictId(dictItemEntity.getDict().getId());
-            return dictItemVO;
-        });
-        return ResultUtils.success(dictItemVOPage);
+    public ResponseEntity getAllDictItems(DictItemQueryVO queryVO, Pageable pageable) {
+        Page<DictItemVO> dictItemVOPage = dictItemService.getPage(queryVO, pageable);
+        return new ResponseEntity(dictItemVOPage, HttpStatus.OK);
     }
 
     /**
      * 新增
-     * @param dictItemEntity
+     * @param dictItemVO
      * @return
      */
     @PostMapping
-    public ResultVO addDictItem(@RequestBody DictItemBO dictItemEntity) {
-        dictItemEntity.setId(null);
-        dictItemEntity = dictItemRepository.save(dictItemEntity);
-        DictItemVO dictDetailVO = dictItemMapper.toVO(dictItemEntity);
-        dictDetailVO.setDictId(dictItemEntity.getDict().getId());
-        return ResultUtils.success(dictDetailVO);
+    public ResponseEntity addDictItem(@RequestBody DictItemVO dictItemVO) {
+        DictItemVO newDictItemVO = dictItemService.insert(dictItemVO);
+        return new ResponseEntity(newDictItemVO, HttpStatus.CREATED);
     }
 
     /**
      * 修改
-     * @param dictDetailEntity
+     * @param dictItemVO
      * @return
      */
     @PutMapping
-    public ResultVO updateDictItem(@RequestBody DictItemBO dictDetailEntity) {
-        DictItemBO oldDictDetailEntity = dictItemRepository.findById(dictDetailEntity.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
-        dictDetailEntity.setGmtCreate(oldDictDetailEntity.getGmtCreate());
-        dictDetailEntity = dictItemRepository.save(dictDetailEntity);
-        DictItemVO dictDetailVO = dictItemMapper.toVO(dictDetailEntity);
-        dictDetailVO.setDictId(dictDetailEntity.getDict().getId());
-        return ResultUtils.success(dictDetailVO);
+    public ResponseEntity updateDictItem(@RequestBody DictItemVO dictItemVO) {
+        dictItemService.update(dictItemVO);
+        return new ResponseEntity(HttpStatus.NO_CONTENT);
     }
 
     /**
      * 删除
-     * @param ids
+     * @param id
      * @return
      */
-    @DeleteMapping
-    public ResultVO deleteDictItems(@RequestParam String ids) {
-        String[] idArray = ids.split(",");
-        for (String id : idArray) {
-            dictItemRepository.deleteById(id);
-        }
-        return ResultUtils.success();
+    @DeleteMapping(value = "/{id}")
+    public ResponseEntity deleteDictItems(@PathVariable String id) {
+        dictItemService.deleteById(id);
+        return new ResponseEntity(HttpStatus.OK);
     }
 }

@@ -1,6 +1,7 @@
 package com.zrar.ai.controller;
 
 import com.zrar.ai.service.DictService;
+import com.zrar.ai.vo.DictQueryVO;
 import com.zrar.ai.vo.DictVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +31,8 @@ public class DictController {
      * @return
      */
     @GetMapping
-    public ResponseEntity getAllDicts(Pageable pageable) {
-        Page<DictVO> dictVOPage = dictService.getPage(pageable);
+    public ResponseEntity getAllDicts(DictQueryVO queryVO, Pageable pageable) {
+        Page<DictVO> dictVOPage = dictService.getPage(queryVO, pageable);
         return new ResponseEntity(dictVOPage, HttpStatus.OK);
     }
 
@@ -65,11 +66,9 @@ public class DictController {
      * @param id
      * @return
      */
-    @DeleteMapping(value = "{/id}")
+    @DeleteMapping(value = "/{id}")
     public ResponseEntity deleteDicts(@PathVariable String id) {
-        DictVO dictVO = new DictVO();
-        dictVO.setId(id);
-        dictService.delete(dictVO);
+        dictService.deleteById(id);
         return new ResponseEntity(HttpStatus.OK);
     }
 }

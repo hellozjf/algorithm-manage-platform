@@ -2,14 +2,16 @@ package com.zrar.ai.service.impl;
 
 import com.zrar.ai.bo.BaseBO;
 import com.zrar.ai.constant.ResultEnum;
+import com.zrar.ai.dao.BaseDao;
 import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.mapper.BaseMapper;
 import com.zrar.ai.service.BaseService;
+import com.zrar.ai.util.QueryHelp;
+import com.zrar.ai.vo.BaseQueryVO;
 import com.zrar.ai.vo.BaseVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -18,19 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
 public abstract class BaseServiceImpl<
         V extends BaseVO,
         B extends BaseBO,
-        D extends JpaRepository<B, String>,
+        D extends BaseDao<B, String>,
         M extends BaseMapper<V, B>
         > implements BaseService<V> {
 
     @Autowired
-    private D dao;
+    protected D dao;
 
     @Autowired
-    private M mapper;
+    protected M mapper;
 
     @Override
-    public Page<V> getPage(Pageable pageable) {
-        Page<B> boPage = dao.findAll(pageable);
+    public Page<V> getPage(BaseQueryVO queryVO, Pageable pageable) {
+        Page<B> boPage = dao.findAll((root, query, cb) -> QueryHelp.getPredicate(root, queryVO, cb), pageable);
         Page<V> voPage = boPage.map(mapper::toVO);
         return voPage;
     }
@@ -60,8 +62,12 @@ public abstract class BaseServiceImpl<
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void delete(V vo) {
-        B bo = dao.findById(vo.getId())
-                .orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
-        dao.delete(bo);
+        dao.deleteById(vo.getId());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void deleteById(String id) {
+        dao.deleteById(id);
     }
 }

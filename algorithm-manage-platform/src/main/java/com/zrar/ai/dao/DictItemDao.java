@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 /**
  * @author Jingfeng Zhou
  */
-public interface DictItemDao extends JpaRepository<DictItemBO, String> {
+public interface DictItemDao extends BaseDao<DictItemBO, String> {
 }
