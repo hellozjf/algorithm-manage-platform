@@ -11,9 +11,9 @@ import com.zrar.ai.config.CustomWorkdirConfig;
 import com.zrar.ai.constant.ModelTypeEnum;
 import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.constant.StateEnum;
-import com.zrar.ai.domain.AiModelEntity;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.exception.AlgorithmException;
-import com.zrar.ai.repository.AiModelRepository;
+import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.service.*;
 import com.zrar.ai.util.ResultUtils;
 import com.zrar.ai.vo.AiModelVO;
@@ -48,7 +48,7 @@ import java.util.*;
 public class WebController {
 
     @Autowired
-    private AiModelRepository aiModelRepository;
+    private AiModelDao aiModelRepository;
 
     @Autowired
     private FileService fileService;
@@ -81,7 +81,7 @@ public class WebController {
      */
     @GetMapping("/getAllModels")
     public ResultVO getAllModels(Pageable pageable) {
-        Page<AiModelEntity> aiModelEntityPage = aiModelRepository.findAll(pageable);
+        Page<AiModelBO> aiModelEntityPage = aiModelRepository.findAll(pageable);
         return ResultUtils.success(aiModelEntityPage);
     }
 
@@ -95,7 +95,7 @@ public class WebController {
     @GetMapping("/getModel")
     public ResultVO getModel(@RequestParam(name = "id", required = false) String id,
                              @RequestParam(name = "fullName", required = false) String fullName) {
-        AiModelEntity entity = getModelEntityByIdOrFullName(id, fullName);
+        AiModelBO entity = getModelEntityByIdOrFullName(id, fullName);
         return ResultUtils.success(entity);
     }
 
@@ -107,8 +107,8 @@ public class WebController {
     @GetMapping("/reboot")
     public ResultVO reboot() {
         // 重新创建目前已经存在的所有容器
-        List<AiModelEntity> aiModelEntityList = aiModelRepository.findAll();
-        for (AiModelEntity aiModelEntity : aiModelEntityList) {
+        List<AiModelBO> aiModelEntityList = aiModelRepository.findAll();
+        for (AiModelBO aiModelEntity : aiModelEntityList) {
             FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
             try {
                 dockerService.recreateDocker(fullNameVO.getFullName());
@@ -130,7 +130,7 @@ public class WebController {
      */
     @GetMapping("/restartModel")
     public ResultVO restartModel(@RequestParam("id") String id) {
-        AiModelEntity modelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        AiModelBO modelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         FullNameVO fullNameVO = fullNameService.getByAiModelEntity(modelEntity);
         try {
             dockerService.restartDocker(fullNameVO.getFullName());
@@ -198,7 +198,7 @@ public class WebController {
                                @RequestParam("file") MultipartFile multipartFile) {
 
         // 首先去数据库中找到这个模型文件
-        AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        AiModelBO aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
 
         // 判断上传过来的文件是不是空的
@@ -239,7 +239,7 @@ public class WebController {
      */
     @GetMapping("/startModel")
     public ResultVO startModel(@RequestParam("id") String id) {
-        AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        AiModelBO aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
         try {
             dockerService.startDocker(fullNameVO.getFullName());
@@ -258,7 +258,7 @@ public class WebController {
      */
     @GetMapping("/stopModel")
     public ResultVO stopModel(@RequestParam("id") String id) {
-        AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        AiModelBO aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
         try {
             dockerService.stopDocker(fullNameVO.getFullName());
@@ -291,7 +291,7 @@ public class WebController {
         }
 
         // 获取新的aiModelEntity
-        AiModelEntity aiModelEntity = getAiModelEntity(aiModelVO, shortName, type, version, bRenewVersion);
+        AiModelBO aiModelEntity = getAiModelEntity(aiModelVO, shortName, type, version, bRenewVersion);
         // 设置参数
         try {
             aiModelEntity.setParam(objectMapper.writeValueAsString(aiModelVO.getParam()));
@@ -303,7 +303,7 @@ public class WebController {
 
         // 组合类型的记录，只添加数据库记录
         if (aiModelVO.getType() == ModelTypeEnum.COMPOSE.getCode()) {
-            AiModelEntity modelEntity = aiModelRepository.save(aiModelEntity);
+            AiModelBO modelEntity = aiModelRepository.save(aiModelEntity);
             return ResultUtils.success(modelEntity);
         }
 
@@ -321,36 +321,36 @@ public class WebController {
         return ResultUtils.success(aiModelEntity);
     }
 
-    private AiModelEntity getAiModelEntity(AiModelVO aiModelVO, String shortName, int type, int version, boolean bRenewVersion) {
-        AiModelEntity aiModelEntity;
+    private AiModelBO getAiModelEntity(AiModelVO aiModelVO, String shortName, int type, int version, boolean bRenewVersion) {
+        AiModelBO aiModelEntity;
         if (bRenewVersion) {
             // 如果要更新版本号，那么根据shortName和type去数据库查找最新的记录
-            Optional<AiModelEntity> optionalAiModelEntity = aiModelRepository.findTopByTypeAndShortNameOrderByVersionDesc(type, shortName);
+            Optional<AiModelBO> optionalAiModelEntity = aiModelRepository.findTopByTypeAndShortNameOrderByVersionDesc(type, shortName);
             if (optionalAiModelEntity.isPresent()) {
-                AiModelEntity oldAiModelEntity = optionalAiModelEntity.get();
+                AiModelBO oldAiModelEntity = optionalAiModelEntity.get();
 
                 // 用新版本号创建一个AiModelEntity
-                aiModelEntity = new AiModelEntity();
+                aiModelEntity = new AiModelBO();
                 BeanUtil.copyProperties(aiModelVO, aiModelEntity);
                 aiModelEntity.setId(null);
                 aiModelEntity.setPort(dockerService.getRandomPort());
                 aiModelEntity.setVersion(oldAiModelEntity.getVersion() + 1);
             } else {
                 // 新建一个
-                aiModelEntity = new AiModelEntity();
+                aiModelEntity = new AiModelBO();
                 BeanUtils.copyProperties(aiModelVO, aiModelEntity);
                 aiModelEntity.setId(null);
                 aiModelEntity.setPort(dockerService.getRandomPort());
                 aiModelEntity.setVersion(1);
             }
         } else {
-            Optional<AiModelEntity> optionalAiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(type, shortName, version);
+            Optional<AiModelBO> optionalAiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(type, shortName, version);
             if (optionalAiModelEntity.isPresent()) {
                 // 获取
                 aiModelEntity = optionalAiModelEntity.get();
             } else {
                 // 新建一个
-                aiModelEntity = new AiModelEntity();
+                aiModelEntity = new AiModelBO();
                 BeanUtils.copyProperties(aiModelVO, aiModelEntity);
                 aiModelEntity.setVersion(1);
             }
@@ -369,7 +369,7 @@ public class WebController {
     public ResultVO delModel(@RequestParam String ids) {
         String[] idArray = ids.split(",");
         for (String id : idArray) {
-            AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+            AiModelBO aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
             FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
             try {
                 dockerService.deleteDocker(fullNameVO.getFullName());
@@ -394,7 +394,7 @@ public class WebController {
     public ResponseEntity<byte[]> downloadFile(@RequestParam("id") String id) {
 
         // 将模型文件读取到byte数组中
-        AiModelEntity aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        AiModelBO aiModelEntity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
         String modelFilePath = fileService.getModelOutterFilePath(fullNameVO.getFullName());
         File file = new File(modelFilePath);
@@ -430,7 +430,7 @@ public class WebController {
         boolean bNewVersion = aiModelVO.getNewVersion().booleanValue();
 
         // 获取数据库中的实体，并更新它
-        AiModelEntity aiModelEntity = getAiModelEntity(aiModelVO, shortName, type, version, bNewVersion);
+        AiModelBO aiModelEntity = getAiModelEntity(aiModelVO, shortName, type, version, bNewVersion);
         try {
             aiModelEntity.setParam(objectMapper.writeValueAsString(aiModelVO.getParam()));
         } catch (JsonProcessingException e) {
@@ -453,8 +453,8 @@ public class WebController {
         return ResultUtils.success(aiModelEntity);
     }
 
-    private AiModelEntity getModelEntityByIdOrFullName(String id, String fullName) {
-        AiModelEntity entity;
+    private AiModelBO getModelEntityByIdOrFullName(String id, String fullName) {
+        AiModelBO entity;
         if (!StringUtils.isEmpty(id)) {
             entity = aiModelRepository.findById(id).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         } else if (!StringUtils.isEmpty(fullName)) {

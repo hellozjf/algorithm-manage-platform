@@ -2,7 +2,7 @@ package com.zrar.ai.service.impl;
 
 import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.constant.ModelTypeEnum;
-import com.zrar.ai.domain.AiModelEntity;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.service.FullNameService;
 import com.zrar.ai.vo.FullNameVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +22,7 @@ public class FullNameServiceImpl implements FullNameService {
     private CustomDockerConfig customDockerConfig;
 
     @Override
-    public FullNameVO getByAiModelEntity(AiModelEntity aiModelEntity) {
+    public FullNameVO getByAiModelEntity(AiModelBO aiModelEntity) {
         return getByTypeNameVersion(aiModelEntity.getType(), aiModelEntity.getShortName(), aiModelEntity.getVersion());
     }
 

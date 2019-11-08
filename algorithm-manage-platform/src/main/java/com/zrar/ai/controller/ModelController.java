@@ -10,10 +10,10 @@ import com.zrar.ai.constant.CutMethodEnum;
 import com.zrar.ai.constant.ModelParamEnum;
 import com.zrar.ai.constant.ModelTypeEnum;
 import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.domain.AiModelEntity;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.dto.Indexes;
 import com.zrar.ai.exception.AlgorithmException;
-import com.zrar.ai.repository.AiModelRepository;
+import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.service.CutService;
 import com.zrar.ai.service.FullNameService;
 import com.zrar.ai.service.StopWordService;
@@ -75,7 +75,7 @@ public class ModelController {
     private StopWordService stopWordService;
 
     @Autowired
-    private AiModelRepository aiModelRepository;
+    private AiModelDao aiModelRepository;
 
     @Autowired
     private CustomDockerConfig customDockerConfig;
@@ -100,7 +100,7 @@ public class ModelController {
         // 将sentence打包成PredictVO
         PredictVO predictVO = unpackSentence(shortName, sentence);
         // 获取对应的实例
-        AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+        AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                 predictVO.getType(),
                 predictVO.getShortName(),
                 predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
@@ -1456,9 +1456,9 @@ public class ModelController {
                 predictVO.setSentence(sentence);
 
                 // 从所有相同名称的模型中，找出版本号最大的tensorflow模型，如果没有tensorflow模型那就找版本号最大的mleap模型
-                List<AiModelEntity> aiModelEntityList = aiModelRepository.findByShortName(shortName);
-                AiModelEntity wanted = null;
-                for (AiModelEntity aiModelEntity : aiModelEntityList) {
+                List<AiModelBO> aiModelEntityList = aiModelRepository.findByShortName(shortName);
+                AiModelBO wanted = null;
+                for (AiModelBO aiModelEntity : aiModelEntityList) {
                     if (wanted == null) {
                         wanted = aiModelEntity;
                     } else if (wanted.getType() == ModelTypeEnum.MLEAP.getCode() &&

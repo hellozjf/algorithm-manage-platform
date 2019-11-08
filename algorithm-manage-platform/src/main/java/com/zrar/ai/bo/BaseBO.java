@@ -1,4 +1,4 @@
-package com.zrar.ai.domain;
+package com.zrar.ai.bo;
 
 import lombok.Data;
 import org.hibernate.annotations.GenericGenerator;
@@ -27,7 +27,7 @@ import java.util.Date;
 @Data
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
-public abstract class BaseEntity implements Serializable {
+public abstract class BaseBO implements Serializable {
 
     /**
      * ID

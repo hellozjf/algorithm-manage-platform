@@ -4,9 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.domain.AiModelEntity;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.exception.AlgorithmException;
-import com.zrar.ai.repository.AiModelRepository;
+import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.service.FileService;
 import com.zrar.ai.service.FullNameService;
 import com.zrar.ai.service.MLeapService;
@@ -37,7 +37,7 @@ public class MLeapServiceImpl implements MLeapService {
     private FileService fileService;
 
     @Autowired
-    private AiModelRepository aiModelRepository;
+    private AiModelDao aiModelRepository;
 
     @Autowired
     private FullNameService fullNameService;
@@ -131,7 +131,7 @@ public class MLeapServiceImpl implements MLeapService {
      */
     private String getUrl(String fullName, String type) {
         FullNameVO fullNameVO = fullNameService.getByFullName(fullName);
-        AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+        AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                 fullNameVO.getIType(),
                 fullNameVO.getShortName(),
                 fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));

@@ -11,9 +11,9 @@ import com.zrar.ai.config.CustomWorkdirConfig;
 import com.zrar.ai.constant.ModelTypeEnum;
 import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.constant.StateEnum;
-import com.zrar.ai.domain.AiModelEntity;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.exception.AlgorithmException;
-import com.zrar.ai.repository.AiModelRepository;
+import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.service.*;
 import com.zrar.ai.vo.FullNameVO;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ import java.util.*;
 public class DockerServiceImpl implements DockerService {
 
     @Autowired
-    private AiModelRepository aiModelRepository;
+    private AiModelDao aiModelRepository;
 
     @Autowired
     private MLeapService mLeapService;
@@ -78,8 +78,8 @@ public class DockerServiceImpl implements DockerService {
 
             // 将当前容器的状态与数据库的记录进行同步
             List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
-            List<AiModelEntity> aiModelEntityList = aiModelRepository.findAll();
-            for (AiModelEntity aiModelEntity : aiModelEntityList) {
+            List<AiModelBO> aiModelEntityList = aiModelRepository.findAll();
+            for (AiModelBO aiModelEntity : aiModelEntityList) {
                 boolean bFind = false;
                 FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
                 for (Container container : containerList) {
@@ -229,7 +229,7 @@ public class DockerServiceImpl implements DockerService {
             ContainerCreation container = dockerClient.createContainer(containerConfig, fullName);
 
             // 这里还需要把端口同步到数据库中
-            AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+            AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                     fullNameVO.getIType(),
                     fullNameVO.getShortName(),
                     fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.JSON_ERROR));
@@ -268,7 +268,7 @@ public class DockerServiceImpl implements DockerService {
                 }
 
                 // 数据库修改模型的状态
-                AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                         fullNameVO.getIType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
@@ -342,7 +342,7 @@ public class DockerServiceImpl implements DockerService {
                 }
 
                 // 数据库修改模型的状态
-                AiModelEntity aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
                         fullNameVO.getIType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));

@@ -3,36 +3,37 @@ package com.zrar.ai.mapper;
 import java.util.List;
 
 /**
- * @author Zheng Jie
- * @date 2018-11-23
+ * VO与BO互相转换工具类
+ * @author hellozjf
+ * @date 2019-11-08
  */
-public interface BaseMapper<D, E> {
+public interface BaseMapper<V, B> {
 
     /**
-     * DTO转Entity
-     * @param dto
+     * VO转BO
+     * @param vo
      * @return
      */
-    E toEntity(D dto);
+    B toBO(V vo);
 
     /**
-     * Entity转DTO
-     * @param entity
+     * BO转VO
+     * @param bo
      * @return
      */
-    D toDto(E entity);
+    V toVO(B bo);
 
     /**
-     * DTO集合转Entity集合
-     * @param dtoList
+     * VO集合转BO集合
+     * @param voList
      * @return
      */
-    List<E> toEntity(List<D> dtoList);
+    List<B> toBO(List<V> voList);
 
     /**
-     * Entity集合转DTO集合
-     * @param entityList
+     * BO集合转VO集合
+     * @param boList
      * @return
      */
-    List <D> toDto(List<E> entityList);
+    List <V> toVO(List<B> boList);
 }

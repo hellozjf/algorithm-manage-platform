@@ -1,4 +1,4 @@
-package com.zrar.ai.domain;
+package com.zrar.ai.bo;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +15,7 @@ import javax.persistence.Table;
 @Data
 @Entity
 @Table(name = "ai_model")
-public class AiModelEntity extends BaseEntity {
+public class AiModelBO extends BaseBO {
 
     /**
      * 模型的名称，例如sw、yyth、qgfx……

@@ -1,4 +1,4 @@
-package com.zrar.ai.domain;
+package com.zrar.ai.bo;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +14,7 @@ import javax.persistence.*;
 @Entity
 @Data
 @Table(name = "dict_detail")
-public class DictItemEntity extends BaseEntity {
+public class DictItemBO extends BaseBO {
 
     /**
      * 值
@@ -46,5 +46,5 @@ public class DictItemEntity extends BaseEntity {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dict_id")
-    private DictEntity dict;
+    private DictBO dict;
 }

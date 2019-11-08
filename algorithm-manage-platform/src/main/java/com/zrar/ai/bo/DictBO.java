@@ -1,4 +1,4 @@
-package com.zrar.ai.domain;
+package com.zrar.ai.bo;
 
 import lombok.Data;
 
@@ -13,7 +13,7 @@ import java.util.List;
 @Entity
 @Data
 @Table(name = "dict")
-public class DictEntity extends BaseEntity {
+public class DictBO extends BaseBO {
 
     /**
      * 字典编码
@@ -31,5 +31,5 @@ public class DictEntity extends BaseEntity {
     private String description;
 
     @OneToMany(mappedBy = "dict", cascade = {CascadeType.PERSIST, CascadeType.REMOVE})
-    private List<DictItemEntity> dictDetails;
+    private List<DictItemBO> dictDetails;
 }

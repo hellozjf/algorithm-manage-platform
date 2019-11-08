@@ -1,10 +1,10 @@
 package com.zrar.ai.controller;
 
+import com.zrar.ai.bo.DictItemBO;
 import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.domain.DictItemEntity;
 import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.mapper.DictItemMapper;
-import com.zrar.ai.repository.DictItemRepository;
+import com.zrar.ai.dao.DictItemDao;
 import com.zrar.ai.util.ResultUtils;
 import com.zrar.ai.vo.DictItemVO;
 import com.zrar.ai.vo.ResultVO;
@@ -20,11 +20,11 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/dictDetail")
-public class DictDetailController {
+@RequestMapping("/dictItem")
+public class DictItemController {
 
     @Autowired
-    private DictItemRepository dictItemRepository;
+    private DictItemDao dictItemRepository;
 
     @Autowired
     private DictItemMapper dictItemMapper;
@@ -36,9 +36,9 @@ public class DictDetailController {
      */
     @GetMapping
     public ResultVO getAllDictItems(Pageable pageable) {
-        Page<DictItemEntity> dictItemEntityPage = dictItemRepository.findAll(pageable);
+        Page<DictItemBO> dictItemEntityPage = dictItemRepository.findAll(pageable);
         Page<DictItemVO> dictItemVOPage = dictItemEntityPage.map(dictItemEntity -> {
-            DictItemVO dictItemVO = dictItemMapper.toDto(dictItemEntity);
+            DictItemVO dictItemVO = dictItemMapper.toVO(dictItemEntity);
             dictItemVO.setDictId(dictItemEntity.getDict().getId());
             return dictItemVO;
         });
@@ -51,10 +51,10 @@ public class DictDetailController {
      * @return
      */
     @PostMapping
-    public ResultVO addDictItem(@RequestBody DictItemEntity dictItemEntity) {
+    public ResultVO addDictItem(@RequestBody DictItemBO dictItemEntity) {
         dictItemEntity.setId(null);
         dictItemEntity = dictItemRepository.save(dictItemEntity);
-        DictItemVO dictDetailVO = dictItemMapper.toDto(dictItemEntity);
+        DictItemVO dictDetailVO = dictItemMapper.toVO(dictItemEntity);
         dictDetailVO.setDictId(dictItemEntity.getDict().getId());
         return ResultUtils.success(dictDetailVO);
     }
@@ -65,11 +65,11 @@ public class DictDetailController {
      * @return
      */
     @PutMapping
-    public ResultVO updateDictItem(@RequestBody DictItemEntity dictDetailEntity) {
-        DictItemEntity oldDictDetailEntity = dictItemRepository.findById(dictDetailEntity.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
+    public ResultVO updateDictItem(@RequestBody DictItemBO dictDetailEntity) {
+        DictItemBO oldDictDetailEntity = dictItemRepository.findById(dictDetailEntity.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
         dictDetailEntity.setGmtCreate(oldDictDetailEntity.getGmtCreate());
         dictDetailEntity = dictItemRepository.save(dictDetailEntity);
-        DictItemVO dictDetailVO = dictItemMapper.toDto(dictDetailEntity);
+        DictItemVO dictDetailVO = dictItemMapper.toVO(dictDetailEntity);
         dictDetailVO.setDictId(dictDetailEntity.getDict().getId());
         return ResultUtils.success(dictDetailVO);
     }

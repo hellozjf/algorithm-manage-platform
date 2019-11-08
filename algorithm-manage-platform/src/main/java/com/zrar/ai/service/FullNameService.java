@@ -1,6 +1,6 @@
 package com.zrar.ai.service;
 
-import com.zrar.ai.domain.AiModelEntity;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.vo.FullNameVO;
 
 /**
@@ -16,7 +16,7 @@ public interface FullNameService {
      * @param aiModelEntity
      * @return
      */
-    FullNameVO getByAiModelEntity(AiModelEntity aiModelEntity);
+    FullNameVO getByAiModelEntity(AiModelBO aiModelEntity);
 
     /**
      * 通过前缀-类型-名称-版本号，获取FullNameVO
