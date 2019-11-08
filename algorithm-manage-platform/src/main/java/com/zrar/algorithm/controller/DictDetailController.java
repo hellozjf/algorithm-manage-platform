@@ -1,12 +1,12 @@
 package com.zrar.algorithm.controller;
 
 import com.zrar.algorithm.constant.ResultEnum;
-import com.zrar.algorithm.domain.DictDetailEntity;
-import com.zrar.algorithm.domain.DictEntity;
+import com.zrar.algorithm.domain.DictItemEntity;
 import com.zrar.algorithm.exception.AlgorithmException;
-import com.zrar.algorithm.repository.DictDetailRepository;
-import com.zrar.algorithm.repository.DictRepository;
+import com.zrar.algorithm.mapper.DictItemMapper;
+import com.zrar.algorithm.repository.DictItemRepository;
 import com.zrar.algorithm.util.ResultUtils;
+import com.zrar.algorithm.vo.DictItemVO;
 import com.zrar.algorithm.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,10 +24,10 @@ import org.springframework.web.bind.annotation.*;
 public class DictDetailController {
 
     @Autowired
-    private DictDetailRepository dictDetailRepository;
+    private DictItemRepository dictItemRepository;
 
     @Autowired
-    private DictRepository dictRepository;
+    private DictItemMapper dictItemMapper;
 
     /**
      * 查询
@@ -35,21 +35,28 @@ public class DictDetailController {
      * @return
      */
     @GetMapping
-    public ResultVO getAllDictDetails(Pageable pageable) {
-        Page<DictDetailEntity> dictDetailEntityPage = dictDetailRepository.findAll(pageable);
-        return ResultUtils.success(dictDetailEntityPage);
+    public ResultVO getAllDictItems(Pageable pageable) {
+        Page<DictItemEntity> dictItemEntityPage = dictItemRepository.findAll(pageable);
+        Page<DictItemVO> dictItemVOPage = dictItemEntityPage.map(dictItemEntity -> {
+            DictItemVO dictItemVO = dictItemMapper.toDto(dictItemEntity);
+            dictItemVO.setDictId(dictItemEntity.getDict().getId());
+            return dictItemVO;
+        });
+        return ResultUtils.success(dictItemVOPage);
     }
 
     /**
      * 新增
-     * @param dictDetailEntity
+     * @param dictItemEntity
      * @return
      */
     @PostMapping
-    public ResultVO addDictDetail(@RequestBody DictDetailEntity dictDetailEntity) {
-        dictDetailEntity.setId(null);
-        dictDetailEntity = dictDetailRepository.save(dictDetailEntity);
-        return ResultUtils.success(dictDetailEntity);
+    public ResultVO addDictItem(@RequestBody DictItemEntity dictItemEntity) {
+        dictItemEntity.setId(null);
+        dictItemEntity = dictItemRepository.save(dictItemEntity);
+        DictItemVO dictDetailVO = dictItemMapper.toDto(dictItemEntity);
+        dictDetailVO.setDictId(dictItemEntity.getDict().getId());
+        return ResultUtils.success(dictDetailVO);
     }
 
     /**
@@ -58,16 +65,13 @@ public class DictDetailController {
      * @return
      */
     @PutMapping
-    public ResultVO updateDictDetail(@RequestBody DictDetailEntity dictDetailEntity) {
-        DictDetailEntity oldDictDetailEntity = dictDetailRepository.findById(dictDetailEntity.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
-        oldDictDetailEntity.setLabel(dictDetailEntity.getLabel());
-        oldDictDetailEntity.setSort(dictDetailEntity.getSort());
-        oldDictDetailEntity.setValue(dictDetailEntity.getValue());
-        DictEntity dictEntity = new DictEntity();
-        dictEntity.setId(dictDetailEntity.getDict().getId());
-        oldDictDetailEntity.setDict(dictEntity);
-        oldDictDetailEntity = dictDetailRepository.save(oldDictDetailEntity);
-        return ResultUtils.success(oldDictDetailEntity);
+    public ResultVO updateDictItem(@RequestBody DictItemEntity dictDetailEntity) {
+        DictItemEntity oldDictDetailEntity = dictItemRepository.findById(dictDetailEntity.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
+        dictDetailEntity.setGmtCreate(oldDictDetailEntity.getGmtCreate());
+        dictDetailEntity = dictItemRepository.save(dictDetailEntity);
+        DictItemVO dictDetailVO = dictItemMapper.toDto(dictDetailEntity);
+        dictDetailVO.setDictId(dictDetailEntity.getDict().getId());
+        return ResultUtils.success(dictDetailVO);
     }
 
     /**
@@ -76,10 +80,10 @@ public class DictDetailController {
      * @return
      */
     @DeleteMapping
-    public ResultVO deleteDictDetails(@RequestParam String ids) {
+    public ResultVO deleteDictItems(@RequestParam String ids) {
         String[] idArray = ids.split(",");
         for (String id : idArray) {
-            dictDetailRepository.deleteById(id);
+            dictItemRepository.deleteById(id);
         }
         return ResultUtils.success();
     }

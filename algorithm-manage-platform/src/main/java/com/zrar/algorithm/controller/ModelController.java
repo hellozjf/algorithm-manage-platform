@@ -1,16 +1,12 @@
 package com.zrar.algorithm.controller;
 
-import cn.hutool.core.io.file.FileReader;
 import cn.hutool.core.util.RuntimeUtil;
-import cn.hutool.extra.tokenizer.Result;
-import cn.hutool.extra.tokenizer.TokenizerEngine;
-import cn.hutool.extra.tokenizer.TokenizerUtil;
-import cn.hutool.extra.tokenizer.Word;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.zrar.algorithm.config.CustomDockerConfig;
+import com.zrar.algorithm.constant.CutMethodEnum;
 import com.zrar.algorithm.constant.ModelParamEnum;
 import com.zrar.algorithm.constant.ModelTypeEnum;
 import com.zrar.algorithm.constant.ResultEnum;
@@ -18,13 +14,12 @@ import com.zrar.algorithm.domain.AiModelEntity;
 import com.zrar.algorithm.dto.Indexes;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.repository.AiModelRepository;
-import com.zrar.algorithm.service.DictMapService;
+import com.zrar.algorithm.service.CutService;
 import com.zrar.algorithm.service.FullNameService;
 import com.zrar.algorithm.service.StopWordService;
-import com.zrar.algorithm.util.JiebaUtils;
+import com.zrar.algorithm.service.VocabMapService;
 import com.zrar.algorithm.util.JsonUtils;
 import com.zrar.algorithm.util.ResultUtils;
-import com.zrar.algorithm.util.WordUtils;
 import com.zrar.algorithm.vo.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpEntity;
@@ -37,17 +32,18 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -73,7 +69,7 @@ public class ModelController {
     private CloseableHttpClient httpClient;
 
     @Autowired
-    private DictMapService dictMapService;
+    private VocabMapService vocabMapService;
 
     @Autowired
     private StopWordService stopWordService;
@@ -87,46 +83,8 @@ public class ModelController {
     @Autowired
     private FullNameService fullNameService;
 
-    /**
-     * 将body体里面的文本进行解析，解析成PredictVO对象
-     * @param sentence
-     * @return
-     */
-    private PredictVO unpackSentence(String shortName, String sentence) {
-        try {
-            if (sentence.trim().startsWith("{")) {
-                // 说明sentence就是一个JSON对象，直接解析
-                PredictVO predictVO = objectMapper.readValue(sentence, PredictVO.class);
-                predictVO.setShortName(shortName);
-                return predictVO;
-            } else {
-                // 说明sentence是单独一句话，将其包装一下
-                PredictVO predictVO = new PredictVO();
-                predictVO.setShortName(shortName);
-                predictVO.setSentence(sentence);
-
-                // 从所有相同名称的模型中，找出版本号最大的tensorflow模型，如果没有tensorflow模型那就找版本号最大的mleap模型
-                List<AiModelEntity> aiModelEntityList = aiModelRepository.findByShortName(shortName);
-                AiModelEntity wanted = null;
-                for (AiModelEntity aiModelEntity : aiModelEntityList) {
-                    if (wanted == null) {
-                        wanted = aiModelEntity;
-                    } else if (wanted.getType() == ModelTypeEnum.MLEAP.getCode() &&
-                                aiModelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
-                        wanted = aiModelEntity;
-                    } else if (aiModelEntity.getVersion() > wanted.getVersion()) {
-                        wanted = aiModelEntity;
-                    }
-                }
-                predictVO.setType(wanted.getType());
-                predictVO.setVersion(wanted.getVersion());
-                return predictVO;
-            }
-        } catch (IOException e) {
-            log.error("e = ", e);
-            throw new AlgorithmException(ResultEnum.JSON_ERROR);
-        }
-    }
+    @Autowired
+    private CutService cutService;
 
     /**
      * 用模型预测sentence，预测分为两个步骤，第一步获取参数，第二步使用参数预测结果
@@ -330,201 +288,142 @@ public class ModelController {
      */
     @GetMapping("/getRawMLeapParams")
     public String getRawMLeapParams(String sentence, int paramCode) {
-        String wordCut = null;
+        CutMethodEnum cutMethodEnum = null;
         if (paramCode == ModelParamEnum.MLEAP_CUT_WORD.getCode()) {
-            wordCut = WordUtils.wordCut(sentence, "");
+            cutMethodEnum = CutMethodEnum.WORD_CUT;
         } else if (paramCode == ModelParamEnum.MLEAP_CUT_WORD_VSWZYC.getCode()) {
-            wordCut = WordUtils.wordCut(sentence, ModelParamEnum.MLEAP_CUT_WORD_VSWZYC.getNature());
+            cutMethodEnum = CutMethodEnum.WORD_CUT_VSWZYC;
         } else if (paramCode == ModelParamEnum.MLEAP_PHRASE_LIST.getCode()) {
-            wordCut = WordUtils.phraseList(sentence);
+            cutMethodEnum = CutMethodEnum.PHRASE_LIST;
         }
-        log.debug("sentence = {}, paramCode = {}, wordCut = {}", sentence, paramCode, wordCut);
-        return wordCut;
+        return cutService.getStringByMethod(sentence, cutMethodEnum);
     }
 
-//    private String getRawPythonTensorflowParams(String sentence, int paramCode, String other, int maxLength) {
-//        try {
-//            URI uri = new URIBuilder()
-//                    .setScheme("http")
-//                    .setHost(customConfig.getBridgeIp())
-//                    .setPort(customConfig.getBridgePort()).setPath("/tensorflow/params/transformer")
-//                    .build();
-//            HttpPost httpPost = new HttpPost(uri);
-//            List<NameValuePair> formparams = new ArrayList<>();
-//            formparams.add(new BasicNameValuePair("sentence", sentence));
-//            formparams.add(new BasicNameValuePair("paramCode", String.valueOf(paramCode)));
-//            formparams.add(new BasicNameValuePair("other", other));
-//            formparams.add(new BasicNameValuePair("maxLength", String.valueOf(maxLength)));
-//            UrlEncodedFormEntity formEntity = new UrlEncodedFormEntity(formparams, Consts.UTF_8);
-//            httpPost.setEntity(formEntity);
+//    /**
+//     * 通过Java获取问答模型Tensorflow前处理后的参数
+//     *
+//     * @param sentence
+//     * @param paramCode
+//     * @return
+//     */
+//    private String getRawJavaQaTensorflowParams(String sentence, int paramCode) {
 //
-//            CloseableHttpResponse response = httpClient.execute(httpPost);
-//            HttpEntity entity = response.getEntity();
-//            String res = EntityUtils.toString(entity);
-//            return res;
-//        } catch (Exception e) {
+//        // 最大词长度120
+//        int maxLength = 120;
+//
+//        // 加载停用词
+//        List<String> stopWordList = stopWordService.getStopWordByPath("static/tensorflow/qa/stopwords.txt");
+//
+//        // 加载词典
+//        Map<String, Integer> dictMap = vocabMapService.getVocabMapByPath("static/tensorflow/qa/vocabulary.txt");
+//
+//        // 将答案“增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。”进行切词，并过滤掉其中的停用词，并将切词转向量
+//        String answerString = "增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。";
+//        List<String> answerStringList = WordUtils.getWordCutList(answerString, "").stream()
+//                .filter(wordCut -> !stopWordList.contains(wordCut))
+//                .collect(Collectors.toList());
+//        log.debug("{}", answerStringList);
+//        List<Integer> answer = answerStringList.stream().map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
+//                .collect(Collectors.toList());
+//
+//        // 获取答案切词长度，并补足或截断长度
+//        int answerLen = answer.size();
+//        answer = fillLength(maxLength, answer, answerLen);
+//
+//        // 将问题也进行切词，并过滤掉其中的停用词，结果以空格分隔
+//        List<Integer> question = WordUtils.getWordCutList(sentence, "").stream()
+//                .filter(wordCut -> !stopWordList.contains(wordCut))
+//                .map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
+//                .collect(Collectors.toList());
+//
+//        // 获取问题切词长度，并补足或截断长度
+//        int questionLen = question.size();
+//        question = fillLength(maxLength, question, questionLen);
+//
+//        // 返回{question:[], question_len:[], answer:[], answer_len:[]}
+//        Map<String, Object> map = new HashMap<>();
+//        map.put("question", question);
+//        map.put("question_len", Arrays.asList(questionLen));
+//        map.put("answer", answer);
+//        map.put("answer_len", Arrays.asList(answerLen));
+//        try {
+//            return objectMapper.writeValueAsString(map);
+//        } catch (JsonProcessingException e) {
 //            log.error("e = {}", e);
-//            return null;
+//            throw new AlgorithmException(ResultEnum.JSON_ERROR);
 //        }
+//    }
+//
+//    private List<Integer> fillLength(int maxLength, List<Integer> answer, int answerLen) {
+//        if (answerLen < maxLength) {
+//            // 不足最大长度就补零
+//            for (int i = answerLen; i < maxLength; i++) {
+//                answer.add(0);
+//            }
+//        } else if (answerLen > maxLength) {
+//            // 大于最大长度就截断
+//            answer = answer.subList(0, maxLength);
+//        }
+//        return answer;
 //    }
 
     /**
-     * 通过Java获取社保模型Tensorflow前处理后的参数
+     * 通过Java获取tensorflow的参数向量
      *
      * @param sentence
-     * @param paramCode
+     * @param modelParamVO
      * @return
+     * @throws JsonProcessingException
      */
-    private String getRawJavaShebaoTensorflowParams(String sentence, int paramCode, int maxLength) {
+    private String getRawJavaTensorflowParams(String sentence, ModelParamVO modelParamVO) {
 
-        // 加载停用词
-        List<String> stopWordList = stopWordService.getStopWordByPath("static/tensorflow/shebao/stopWord.txt");
+        if (modelParamVO.getRemovePunctuation() != null && modelParamVO.getRemovePunctuation().booleanValue()) {
+            // 替换标点符号
+            sentence.replaceAll("\\W", "");
+        }
+        if (modelParamVO.getRemoveStopWord() != null && modelParamVO.getRemoveStopWord().booleanValue()) {
+            // 去停词
+            sentence = removeStopWord(sentence);
+        }
 
-        // 过滤停用词
-        String filterStopWords = JiebaUtils.lcut(sentence).stream()
-                .filter(wordCut -> !stopWordList.contains(wordCut))
-                .collect(Collectors.joining());
-        log.debug("sentence={}", sentence);
-        log.debug("filterStopWords={}", filterStopWords);
+        // 切字
+        CutMethodEnum cutMethodEnum = CutMethodEnum.getByCode(modelParamVO.getParamCode());
+        List<String> wordList = cutService.getListByMethod(sentence, cutMethodEnum);
 
-        return getRawJavaTensorflowParams(filterStopWords, paramCode, maxLength);
-    }
+        // 加开始和结束符
+        wordList.add(0, "[CLS]");
+        wordList.add("[SEP]");
 
-    /**
-     * 通过Java获取问答模型Tensorflow前处理后的参数
-     *
-     * @param sentence
-     * @param paramCode
-     * @return
-     */
-    private String getRawJavaQaTensorflowParams(String sentence, int paramCode) {
+        // 将文字转化为坐标值
+        Map<String, Integer> dictMap = vocabMapService.getVocabMap();
+        List<Integer> integerList = wordList2IntegerList(wordList, dictMap);
 
-        // 最大词长度120
-        int maxLength = 120;
+        // 构造inputIds, inputMask, segmentIds
+        List<Integer> inputIds = new ArrayList<>();
+        List<Integer> inputMask = new ArrayList<>();
+        List<Integer> segmentIds = new ArrayList<>();
+        getInputIdsInputMaskSegmentIds(integerList, inputIds, inputMask, segmentIds, modelParamVO.getLength());
 
-        // 加载停用词
-        List<String> stopWordList = stopWordService.getStopWordByPath("static/tensorflow/qa/stopwords.txt");
-
-        // 加载词典
-        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/qa/vocabulary.txt");
-
-        // 将答案“增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。”进行切词，并过滤掉其中的停用词，并将切词转向量
-        String answerString = "增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。";
-        List<String> answerStringList = WordUtils.getWordCutList(answerString, "").stream()
-                .filter(wordCut -> !stopWordList.contains(wordCut))
-                .collect(Collectors.toList());
-        log.debug("{}", answerStringList);
-        List<Integer> answer = answerStringList.stream().map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
-                .collect(Collectors.toList());
-
-        // 获取答案切词长度，并补足或截断长度
-        int answerLen = answer.size();
-        answer = fillLength(maxLength, answer, answerLen);
-
-        // 将问题也进行切词，并过滤掉其中的停用词，结果以空格分隔
-        List<Integer> question = WordUtils.getWordCutList(sentence, "").stream()
-                .filter(wordCut -> !stopWordList.contains(wordCut))
-                .map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
-                .collect(Collectors.toList());
-
-        // 获取问题切词长度，并补足或截断长度
-        int questionLen = question.size();
-        question = fillLength(maxLength, question, questionLen);
-
-        // 返回{question:[], question_len:[], answer:[], answer_len:[]}
-        Map<String, Object> map = new HashMap<>();
-        map.put("question", question);
-        map.put("question_len", Arrays.asList(questionLen));
-        map.put("answer", answer);
-        map.put("answer_len", Arrays.asList(answerLen));
+        // 返回JSON化的结果
         try {
-            return objectMapper.writeValueAsString(map);
+            return getJsonResult(modelParamVO, inputIds, inputMask, segmentIds);
         } catch (JsonProcessingException e) {
-            log.error("e = {}", e);
+            log.error("e = ", e);
             throw new AlgorithmException(ResultEnum.JSON_ERROR);
         }
     }
 
-    private List<Integer> fillLength(int maxLength, List<Integer> answer, int answerLen) {
-        if (answerLen < maxLength) {
-            // 不足最大长度就补零
-            for (int i = answerLen; i < maxLength; i++) {
-                answer.add(0);
-            }
-        } else if (answerLen > maxLength) {
-            // 大于最大长度就截断
-            answer = answer.subList(0, maxLength);
-        }
-        return answer;
-    }
-
-    private String getRawJavaTensorflowParams(String sentence, ModelParamVO modelParamVO) {
-        if (modelParamVO.getRemovePunctuation() != null && modelParamVO.getRemovePunctuation().booleanValue()) {
-            // 替换掉标点符号
-            sentence.replaceAll("\\W", "");
-        }
-
-        // 这里我不知道怎么切割出单个字和完整的数字，所以我先全部切成单个，切完再处理成完整的数字
-        String[] words = sentence.split("");
-        List<String> wordList = new ArrayList<>();
-        wordList.add("[CLS]");
-        StringBuilder number = new StringBuilder();
-        for (String word : words) {
-            if (org.apache.commons.lang3.StringUtils.isNumeric(word)) {
-                // 数字先放到缓冲区缓存起来
-                number.append(word);
-            } else {
-                if (!StringUtils.isEmpty(number.toString())) {
-                    // 将之前缓存的数字放入list中
-                    wordList.add(number.toString());
-                    // 清除缓存的数字
-                    number.setLength(0);
-                }
-                wordList.add(word);
-            }
-        }
-        if (!StringUtils.isEmpty(number.toString())) {
-            // 将之前缓存的数字放入list中
-            wordList.add(number.toString());
-            // 清除缓存的数字
-            number.setLength(0);
-        }
-        wordList.add("[SEP]");
-
-        // 将文字转化为坐标值
-        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
-        List<Integer> integerList = wordList.stream().map(word -> {
-            Integer integer = dictMap.get(word);
-            if (integer == null) {
-                return dictMap.get("[UNK]");
-            } else {
-                return integer;
-            }
-        }).collect(Collectors.toList());
-
-        List<Integer> inputIds = new ArrayList<>();
-        List<Integer> inputMask = new ArrayList<>();
-        List<Integer> segmentIds = new ArrayList<>();
-        if (integerList.size() > modelParamVO.getLength()) {
-            // 如果integerList长度太长，则它第128个元素置为结束符
-            integerList.set(modelParamVO.getLength() - 1, integerList.get(integerList.size() - 1));
-        } else if (integerList.size() < modelParamVO.getLength()) {
-            // 如果integerList长度不够，则需要补零
-            for (int i = integerList.size(); i < modelParamVO.getLength(); i++) {
-                integerList.add(0);
-            }
-        }
-        for (int i = 0; i < modelParamVO.getLength(); i++) {
-            int t = integerList.get(i);
-            inputIds.add(t);
-            if (t > 0) {
-                inputMask.add(1);
-            } else {
-                inputMask.add(0);
-            }
-            segmentIds.add(0);
-        }
-
+    /**
+     * 获取JSON化的结果
+     *
+     * @param modelParamVO
+     * @param inputIds
+     * @param inputMask
+     * @param segmentIds
+     * @return
+     * @throws JsonProcessingException
+     */
+    private String getJsonResult(ModelParamVO modelParamVO, List<Integer> inputIds, List<Integer> inputMask, List<Integer> segmentIds) throws JsonProcessingException {
         Map<String, Object> result = new HashMap<>();
         result.put("input_ids", inputIds);
         result.put("input_mask", inputMask);
@@ -532,219 +431,24 @@ public class ModelController {
             result.put("label_ids", 0);
         }
         result.put("segment_ids", segmentIds);
-        try {
-            return objectMapper.writeValueAsString(result);
-        } catch (JsonProcessingException e) {
-            log.error("e = {}", e);
-            return "";
-        }
+        return objectMapper.writeValueAsString(result);
     }
 
     /**
-     * 将句子转成字，然后转换为向量
+     * 去停词
      *
      * @param sentence
-     * @param paramCode
-     * @param maxSeqLength
      * @return
      */
-    private String getRawJavaTensorflowParams(String sentence, int paramCode, int maxSeqLength) {
-        if (paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
-            // 情感分析，替换掉标点符号
-            sentence.replaceAll("\\W", "");
-        }
-
-        // 这里我不知道怎么切割出单个字和完整的数字，所以我先全部切成单个，切完再处理成完整的数字
-        String[] words = sentence.split("");
-        List<String> wordList = new ArrayList<>();
-        wordList.add("[CLS]");
-        StringBuilder number = new StringBuilder();
-        for (String word : words) {
-            if (org.apache.commons.lang3.StringUtils.isNumeric(word)) {
-                // 数字先放到缓冲区缓存起来
-                number.append(word);
-            } else {
-                if (!StringUtils.isEmpty(number.toString())) {
-                    // 将之前缓存的数字放入list中
-                    wordList.add(number.toString());
-                    // 清除缓存的数字
-                    number.setLength(0);
-                }
-                wordList.add(word);
-            }
-        }
-        if (!StringUtils.isEmpty(number.toString())) {
-            // 将之前缓存的数字放入list中
-            wordList.add(number.toString());
-            // 清除缓存的数字
-            number.setLength(0);
-        }
-        wordList.add("[SEP]");
-
-        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
-        List<Integer> integerList = wordList.stream().map(word -> {
-            Integer integer = dictMap.get(word);
-            if (integer == null) {
-                return dictMap.get("[UNK]");
-            } else {
-                return integer;
-            }
-        }).collect(Collectors.toList());
-
-        List<Integer> inputIds = new ArrayList<>();
-        List<Integer> inputMask = new ArrayList<>();
-        List<Integer> segmentIds = new ArrayList<>();
-        if (integerList.size() > maxSeqLength) {
-            // 如果integerList长度太长，则它第128个元素置为结束符
-            integerList.set(maxSeqLength - 1, integerList.get(integerList.size() - 1));
-        } else if (integerList.size() < maxSeqLength) {
-            // 如果integerList长度不够，则需要补零
-            for (int i = integerList.size(); i < maxSeqLength; i++) {
-                integerList.add(0);
-            }
-        }
-        for (int i = 0; i < maxSeqLength; i++) {
-            int t = integerList.get(i);
-            inputIds.add(t);
-            if (t > 0) {
-                inputMask.add(1);
-            } else {
-                inputMask.add(0);
-            }
-            segmentIds.add(0);
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("input_ids", inputIds);
-        result.put("input_mask", inputMask);
-        if (paramCode != ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
-            result.put("label_ids", 0);
-        }
-        result.put("segment_ids", segmentIds);
-        try {
-            return objectMapper.writeValueAsString(result);
-        } catch (JsonProcessingException e) {
-            log.error("e = {}", e);
-            return "";
-        }
-    }
-
-    /**
-     * 将句子转成字，然后转换为向量，其中要考虑是否去除标点、去停词、长度
-     *
-     * @param sentence              原始句子
-     * @param bRemovePunctuation    是否去除标点
-     * @param bRemoveStopWord       是否去停词
-     * @param maxSeqLength          长度或位数
-     * @return
-     */
-    private String getRawJavaTensorflowParams(String sentence, boolean bRemovePunctuation, boolean bRemoveStopWord, int maxSeqLength) {
-
-        if (bRemovePunctuation) {
-            // 移除标点符号
-            sentence.replaceAll("\\W", "");
-        }
-        if (bRemoveStopWord) {
-            // 自动根据用户引入的分词库的jar来自动选择使用的引擎
-            TokenizerEngine engine = TokenizerUtil.createEngine();
-            // 解析文本
-            Result result = engine.parse(sentence);
-            Iterator<Word> iterator = result;
-            List<String> wordList = new ArrayList<>();
-
-            // 去停词
-            try {
-                File file = new ClassPathResource("static/tensorflow/stopWord.txt").getFile();
-                FileReader fileReader = new FileReader(file);
-                List<String> lines = fileReader.readLines();
-                while (iterator.hasNext()) {
-                    Word word = iterator.next();
-                    String text = word.getText();
-                    if (lines.contains(text)) {
-                        continue;
-                    } else {
-                        wordList.add(text);
-                    }
-                }
-            } catch (IOException e) {
-                log.error("e = {}", e);
-            }
-
-            // 把去停词以后的字符串重组出来
-            sentence = String.join("", wordList);
-        }
-
-        // 这里我不知道怎么切割出单个字和完整的数字，所以我先全部切成单个，切完再处理成完整的数字
-        String[] words = sentence.split("");
-        List<String> wordList = new ArrayList<>();
-        wordList.add("[CLS]");
-        StringBuilder number = new StringBuilder();
-        for (String word : words) {
-            if (org.apache.commons.lang3.StringUtils.isNumeric(word)) {
-                // 数字先放到缓冲区缓存起来
-                number.append(word);
-            } else {
-                if (!StringUtils.isEmpty(number.toString())) {
-                    // 将之前缓存的数字放入list中
-                    wordList.add(number.toString());
-                    // 清除缓存的数字
-                    number.setLength(0);
-                }
-                wordList.add(word);
-            }
-        }
-        if (!StringUtils.isEmpty(number.toString())) {
-            // 将之前缓存的数字放入list中
-            wordList.add(number.toString());
-            // 清除缓存的数字
-            number.setLength(0);
-        }
-        wordList.add("[SEP]");
-
-        Map<String, Integer> dictMap = dictMapService.getDictMapByPath("static/tensorflow/vocab.txt");
-        List<Integer> integerList = wordList.stream().map(word -> {
-            Integer integer = dictMap.get(word);
-            if (integer == null) {
-                return dictMap.get("[UNK]");
-            } else {
-                return integer;
-            }
-        }).collect(Collectors.toList());
-
-        List<Integer> inputIds = new ArrayList<>();
-        List<Integer> inputMask = new ArrayList<>();
-        List<Integer> segmentIds = new ArrayList<>();
-        if (integerList.size() > maxSeqLength) {
-            // 如果integerList长度太长，则它第128个元素置为结束符
-            integerList.set(maxSeqLength - 1, integerList.get(integerList.size() - 1));
-        } else if (integerList.size() < maxSeqLength) {
-            // 如果integerList长度不够，则需要补零
-            for (int i = integerList.size(); i < maxSeqLength; i++) {
-                integerList.add(0);
-            }
-        }
-        for (int i = 0; i < maxSeqLength; i++) {
-            int t = integerList.get(i);
-            inputIds.add(t);
-            if (t > 0) {
-                inputMask.add(1);
-            } else {
-                inputMask.add(0);
-            }
-            segmentIds.add(0);
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("input_ids", inputIds);
-        result.put("input_mask", inputMask);
-        result.put("label_ids", 0);
-        result.put("segment_ids", segmentIds);
-        try {
-            return objectMapper.writeValueAsString(result);
-        } catch (JsonProcessingException e) {
-            log.error("e = {}", e);
-            return "";
-        }
+    private String removeStopWord(String sentence) {
+        // 1. 切词
+        List<String> wordList = cutService.getListByMethod(sentence, CutMethodEnum.WORD_CUT);
+        // 2. 读取停词
+        List<String> stopWordList = stopWordService.getStopWord();
+        // 3. 过滤停词，拼接字符串，返回结果
+        return wordList.stream()
+                .filter(wordCut -> !stopWordList.contains(wordCut))
+                .collect(Collectors.joining());
     }
 
     /**
@@ -890,6 +594,7 @@ public class ModelController {
 
     /**
      * 调用mleap-serving获取结果
+     *
      * @param port
      * @param params
      * @return
@@ -912,6 +617,7 @@ public class ModelController {
 
     /**
      * 调用tensorflow-serving获取结果
+     *
      * @param port
      * @param fullName
      * @param params
@@ -1091,7 +797,7 @@ public class ModelController {
                     "python/bert_match/deployment.py",
                     "python/bert_match/stand_em_.pk",
                     text);
-            if (! StringUtils.isEmpty(rawQuestion)) {
+            if (!StringUtils.isEmpty(rawQuestion)) {
                 rawQuestion = rawQuestion.trim();
             }
             predictString = RuntimeUtil.execForStr("python",
@@ -1162,7 +868,7 @@ public class ModelController {
         // ]
         ArrayNode arrayNode = null;
 //        try {
-            // todo 这里不知道怎么改
+        // todo 这里不知道怎么改
 //            ArrayNode a1 = (ArrayNode) objectMapper.readTree(result);
 //            if (a1 != null && a1.size() == 1) {
 //                arrayNode = (ArrayNode) a1.get(0);
@@ -1678,5 +1384,97 @@ public class ModelController {
         }
 
         return predictResultVO;
+    }
+
+    /**
+     * 通过查询vocat.txt文件，把单词列表转化为数字列表
+     *
+     * @param wordList
+     * @param dictMap
+     * @return
+     */
+    private List<Integer> wordList2IntegerList(List<String> wordList, Map<String, Integer> dictMap) {
+        List<Integer> integerList = wordList.stream().map(word -> {
+            Integer integer = dictMap.get(word);
+            if (integer == null) {
+                return dictMap.get("[UNK]");
+            } else {
+                return integer;
+            }
+        }).collect(Collectors.toList());
+        return integerList;
+    }
+
+    /**
+     * 构造inputIds, inputMask, segmentIds
+     *
+     * @param integerList
+     * @param inputIds
+     * @param inputMask
+     * @param segmentIds
+     * @param length
+     */
+    private void getInputIdsInputMaskSegmentIds(List<Integer> integerList, List<Integer> inputIds, List<Integer> inputMask, List<Integer> segmentIds, Integer length) {
+        if (integerList.size() > length) {
+            // 如果integerList长度太长，则它第128个元素置为结束符
+            integerList.set(length - 1, integerList.get(integerList.size() - 1));
+        } else if (integerList.size() < length) {
+            // 如果integerList长度不够，则需要补零
+            for (int i = integerList.size(); i < length; i++) {
+                integerList.add(0);
+            }
+        }
+        for (int i = 0; i < length; i++) {
+            int t = integerList.get(i);
+            inputIds.add(t);
+            if (t > 0) {
+                inputMask.add(1);
+            } else {
+                inputMask.add(0);
+            }
+            segmentIds.add(0);
+        }
+    }
+
+    /**
+     * 将body体里面的文本进行解析，解析成PredictVO对象
+     *
+     * @param sentence
+     * @return
+     */
+    private PredictVO unpackSentence(String shortName, String sentence) {
+        try {
+            if (sentence.trim().startsWith("{")) {
+                // 说明sentence就是一个JSON对象，直接解析
+                PredictVO predictVO = objectMapper.readValue(sentence, PredictVO.class);
+                predictVO.setShortName(shortName);
+                return predictVO;
+            } else {
+                // 说明sentence是单独一句话，将其包装一下
+                PredictVO predictVO = new PredictVO();
+                predictVO.setShortName(shortName);
+                predictVO.setSentence(sentence);
+
+                // 从所有相同名称的模型中，找出版本号最大的tensorflow模型，如果没有tensorflow模型那就找版本号最大的mleap模型
+                List<AiModelEntity> aiModelEntityList = aiModelRepository.findByShortName(shortName);
+                AiModelEntity wanted = null;
+                for (AiModelEntity aiModelEntity : aiModelEntityList) {
+                    if (wanted == null) {
+                        wanted = aiModelEntity;
+                    } else if (wanted.getType() == ModelTypeEnum.MLEAP.getCode() &&
+                            aiModelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+                        wanted = aiModelEntity;
+                    } else if (aiModelEntity.getVersion() > wanted.getVersion()) {
+                        wanted = aiModelEntity;
+                    }
+                }
+                predictVO.setType(wanted.getType());
+                predictVO.setVersion(wanted.getVersion());
+                return predictVO;
+            }
+        } catch (IOException e) {
+            log.error("e = ", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
     }
 }

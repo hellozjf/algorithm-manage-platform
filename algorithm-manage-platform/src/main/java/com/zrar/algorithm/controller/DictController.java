@@ -48,6 +48,7 @@ public class DictController {
      */
     @PostMapping
     public ResultVO addDict(@RequestBody DictEntity dictEntity) {
+        dictEntity.setId(null);
         dictEntity = dictRepository.save(dictEntity);
         DictVO dictVO = dictMapper.toDto(dictEntity);
         return ResultUtils.success(dictVO);
@@ -61,10 +62,10 @@ public class DictController {
     @PutMapping
     public ResultVO updateDict(@RequestBody DictEntity dictEntity) {
         DictEntity oldDictEntity = dictRepository.findById(dictEntity.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_DICT_ERROR));
-        oldDictEntity.setName(dictEntity.getName());
-        oldDictEntity.setRemark(dictEntity.getRemark());
-        oldDictEntity = dictRepository.save(oldDictEntity);
-        return ResultUtils.success(oldDictEntity);
+        dictEntity.setGmtCreate(oldDictEntity.getGmtCreate());
+        dictEntity = dictRepository.save(dictEntity);
+        DictVO dictVO = dictMapper.toDto(dictEntity);
+        return ResultUtils.success(dictVO);
     }
 
     /**

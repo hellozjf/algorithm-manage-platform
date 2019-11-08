@@ -4,6 +4,7 @@ import com.zrar.algorithm.constant.ResultEnum;
 import com.zrar.algorithm.exception.AlgorithmException;
 import com.zrar.algorithm.service.StopWordService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -21,6 +22,15 @@ import java.util.List;
 @Service
 @Slf4j
 public class StopWordServiceImpl implements StopWordService {
+
+    @Autowired
+    private StopWordService stopWordService;
+
+    @Cacheable(value = "StopWordServiceImpl")
+    @Override
+    public List<String> getStopWord() {
+        return stopWordService.getStopWordByPath(DEFAULT_STOP_WORD_FILE_PATH);
+    }
 
     @Cacheable(value = "StopWordServiceImpl", key = "#path")
     @Override

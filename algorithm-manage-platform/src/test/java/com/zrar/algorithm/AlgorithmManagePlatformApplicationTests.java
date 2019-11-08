@@ -1,7 +1,6 @@
 package com.zrar.algorithm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.huaban.analysis.jieba.JiebaSegmenter;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.messages.Container;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.tensorflow.Graph;
 import org.tensorflow.SavedModelBundle;
@@ -47,27 +45,27 @@ public class AlgorithmManagePlatformApplicationTests {
         log.debug("s = {}", s);
     }
 
-    @Test
-    public void testDemo() {
-        JiebaSegmenter segmenter = new JiebaSegmenter();
-        String[] sentences =
-                new String[]{"这是一个伸手不见五指的黑夜。我叫孙悟空，我爱北京，我爱Python和C++。", "我不喜欢日本和服。", "雷猴回归人间。",
-                        "工信处女干事每月经过下属科室都要亲口交代24口交换机等技术性器件的安装工作", "结果婚的和尚未结过婚的"};
-        for (String sentence : sentences) {
-            System.out.println(segmenter.process(sentence, JiebaSegmenter.SegMode.INDEX).toString());
-        }
-    }
+//    @Test
+//    public void testDemo() {
+//        JiebaSegmenter segmenter = new JiebaSegmenter();
+//        String[] sentences =
+//                new String[]{"这是一个伸手不见五指的黑夜。我叫孙悟空，我爱北京，我爱Python和C++。", "我不喜欢日本和服。", "雷猴回归人间。",
+//                        "工信处女干事每月经过下属科室都要亲口交代24口交换机等技术性器件的安装工作", "结果婚的和尚未结过婚的"};
+//        for (String sentence : sentences) {
+//            System.out.println(segmenter.process(sentence, JiebaSegmenter.SegMode.INDEX).toString());
+//        }
+//    }
 
-    /**
-     * 切词
-     */
-    @Test
-    public void lcut() {
-        JiebaSegmenter segmenter = new JiebaSegmenter();
-        String str = "请杭州未来客服代表电波收费万说钱希望工商我查一下交钱消费预收收款预收款300昨天离开锁定以后随意扣91沟通现在告诉早餐费贵姓姓张弓长张全名提供一下我想装王字旁七块钱暂时女士电脑消费身份身份证";
-        List<String> wordList = segmenter.sentenceProcess(str);
-        log.debug("wordList = {}", wordList);
-    }
+//    /**
+//     * 切词
+//     */
+//    @Test
+//    public void lcut() {
+//        JiebaSegmenter segmenter = new JiebaSegmenter();
+//        String str = "请杭州未来客服代表电波收费万说钱希望工商我查一下交钱消费预收收款预收款300昨天离开锁定以后随意扣91沟通现在告诉早餐费贵姓姓张弓长张全名提供一下我想装王字旁七块钱暂时女士电脑消费身份身份证";
+//        List<String> wordList = segmenter.sentenceProcess(str);
+//        log.debug("wordList = {}", wordList);
+//    }
 
     @Test
     public void loadModel() throws Exception {

@@ -28,6 +28,13 @@ public class ModelParamVO {
     private Boolean removeStopWord;
 
     /**
+     * 切词方式
+     * mleap：切词、切词——税务专有词、切短语
+     * tensorflow：切字
+     */
+    private Integer cutMethod;
+
+    /**
      * 位数
      */
     private Integer length;

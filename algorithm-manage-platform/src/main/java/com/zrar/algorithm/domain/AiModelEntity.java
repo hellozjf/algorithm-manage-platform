@@ -39,7 +39,7 @@ public class AiModelEntity extends BaseEntity {
      * 模型类型，目前支持mleap、tensorflow和compose
      * @see com.zrar.algorithm.constant.ModelTypeEnum
      */
-    private int type;
+    private Integer type;
 
     /**
      * 模型参数
@@ -68,7 +68,7 @@ public class AiModelEntity extends BaseEntity {
     /**
      * 版本号，从1开始，每次修改增加1
      */
-    private int version;
+    private Integer version;
 
     /**
      * 模型的状态
@@ -78,5 +78,5 @@ public class AiModelEntity extends BaseEntity {
     /**
      * 模型服务的端口
      */
-    private int port;
+    private Integer port;
 }

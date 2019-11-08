@@ -6,32 +6,40 @@ import lombok.extern.slf4j.Slf4j;
 import javax.persistence.*;
 
 /**
- * @author Zheng Jie
- * @date 2019-04-10
+ * 数据字典项目
+ * @author hellozjf
+ * @date 2019-11-08
  */
 @Slf4j
 @Entity
 @Data
 @Table(name = "dict_detail")
-public class DictDetailEntity extends BaseEntity {
+public class DictItemEntity extends BaseEntity {
 
     /**
-     * 字典标签
+     * 值
      */
-    @Column(name = "label", nullable = false)
-    private String label;
-
-    /**
-     * 字典值
-     */
-    @Column(name = "value", nullable = false)
     private String value;
+
+    /**
+     * 显示文本
+     */
+    private String text;
+
+    /**
+     * 描述
+     */
+    private String description;
 
     /**
      * 排序
      */
-    @Column(name = "sort")
-    private String sort;
+    private Integer sort;
+
+    /**
+     * 其它值
+     */
+    private String other;
 
     /**
      * 字典id
