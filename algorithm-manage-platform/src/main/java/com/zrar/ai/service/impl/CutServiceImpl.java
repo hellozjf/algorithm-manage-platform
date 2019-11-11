@@ -2,7 +2,7 @@ package com.zrar.ai.service.impl;
 
 import com.hankcs.hanlp.HanLP;
 import com.hankcs.hanlp.seg.common.Term;
-import com.zrar.ai.constant.CutMethodEnum;
+import com.zrar.ai.constant.DictItem;
 import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.service.CutService;
@@ -18,37 +18,6 @@ import java.util.List;
  */
 @Service
 public class CutServiceImpl implements CutService {
-
-    @Override
-    public List<String> getListByMethod(String sentence, CutMethodEnum cutMethodEnum) {
-        if (cutMethodEnum.getCode().equals(CutMethodEnum.WORD_CUT)) {
-            return getWordCutList(sentence, null);
-        } else if (cutMethodEnum.getCode().equals(CutMethodEnum.WORD_CUT_VSWZYC)) {
-            return getWordCutList(sentence, SWZYC);
-        } else if (cutMethodEnum.getCode().equals(CutMethodEnum.PHRASE_LIST)) {
-            return getPhraseList(sentence);
-        } else if (cutMethodEnum.getCode().equals(CutMethodEnum.CHAR_CUT)) {
-            return getCharCutList(sentence);
-        } else {
-            // 不支持的切词方法，抛出异常
-            throw new AlgorithmException(ResultEnum.UNKNOWN_CUT_METHOD_ERROR);
-        }
-    }
-
-    @Override
-    public String getStringByMethod(String sentence, CutMethodEnum cutMethodEnum) {
-        return getStringByMethod(sentence, cutMethodEnum, " ", "null");
-    }
-
-    @Override
-    public String getStringByMethod(String sentence, CutMethodEnum cutMethodEnum, String separator, String defaultString) {
-        List<String> cutList = getListByMethod(sentence, cutMethodEnum);
-        if (cutList == null || cutList.size() == 0) {
-            return defaultString;
-        } else {
-            return String.join(separator, cutList);
-        }
-    }
 
     /**
      * 词性：税务专有词
@@ -186,5 +155,36 @@ public class CutServiceImpl implements CutService {
         }
         List<String> phraseList = HanLP.extractPhrase(sentence, 10);
         return phraseList;
+    }
+
+    @Override
+    public List<String> getListByMethod(String sentence, String cutMethod) {
+        if (cutMethod.equals(DictItem.CUT_METHOD_WORD_CUT)) {
+            return getWordCutList(sentence, null);
+        } else if (cutMethod.equals(DictItem.CUT_METHOD_WORD_CUT_VSWZYC)) {
+            return getWordCutList(sentence, SWZYC);
+        } else if (cutMethod.equals(DictItem.CUT_METHOD_PHRASE_LIST)) {
+            return getPhraseList(sentence);
+        } else if (cutMethod.equals(DictItem.CUT_METHOD_CHAR_CUT)) {
+            return getCharCutList(sentence);
+        } else {
+            // 不支持的切词方法，抛出异常
+            throw new AlgorithmException(ResultEnum.UNKNOWN_CUT_METHOD_ERROR);
+        }
+    }
+
+    @Override
+    public String getStringByMethod(String sentence, String cutMethod) {
+        return getStringByMethod(sentence, cutMethod, " ", "null");
+    }
+
+    @Override
+    public String getStringByMethod(String sentence, String cutMethod, String separator, String defaultString) {
+        List<String> cutList = getListByMethod(sentence, cutMethod);
+        if (cutList == null || cutList.size() == 0) {
+            return defaultString;
+        } else {
+            return String.join(separator, cutList);
+        }
     }
 }

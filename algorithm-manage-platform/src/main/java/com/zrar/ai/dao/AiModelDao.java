@@ -18,7 +18,7 @@ public interface AiModelDao extends BaseDao<AiModelBO, String> {
      * @param version
      * @return
      */
-    Optional<AiModelBO> findByTypeAndShortNameAndVersion(int type, String shortName, int version);
+    Optional<AiModelBO> findByTypeAndShortNameAndVersion(String type, String shortName, int version);
 
     /**
      * 通过类型、名称，获取版本号最大的一条实体记录
@@ -26,7 +26,7 @@ public interface AiModelDao extends BaseDao<AiModelBO, String> {
      * @param shortName
      * @return
      */
-    Optional<AiModelBO> findTopByTypeAndShortNameOrderByVersionDesc(int type, String shortName);
+    Optional<AiModelBO> findTopByTypeAndShortNameOrderByVersionDesc(String type, String shortName);
 
     /**
      * 找出所有模型名称叫做name的实体

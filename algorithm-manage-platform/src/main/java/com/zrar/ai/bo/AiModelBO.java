@@ -36,9 +36,8 @@ public class AiModelBO extends BaseBO {
 
     /**
      * 模型类型，目前支持mleap、tensorflow和compose
-     * @see com.zrar.ai.constant.ModelTypeEnum
      */
-    private Integer type;
+    private String type;
 
     /**
      * 模型参数
@@ -53,14 +52,14 @@ public class AiModelBO extends BaseBO {
      * 组合（当模型类型是ModelTypeEnum.COMPOSE时，依次将前一个模型的结果送给下一个模型）
      *
      * {
-     *  "removePunctuation": false,
-     *  "removeStopWord": true,
-     *  "length": 128,
-     *  "paramCode": 102,
-     *  "compose": "ap,bi"
+     *   "removePunctuation": false,
+     *   "removeStopWord": true,
+     *   "cutMethod": "char_cut",
+     *   "length": 128,
+     *   "modelName": "bert_match",
+     *   "compose": "ap,bi",
+     *   "haveLabelIds": true
      * }
-     *
-     * @see com.zrar.ai.constant.ModelParamEnum
      */
     private String param;
 

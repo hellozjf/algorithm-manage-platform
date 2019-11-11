@@ -23,12 +23,7 @@ public class FullNameVO {
     /**
      * 字符串类型的类型
      */
-    private String strType;
-
-    /**
-     * 数字类型的类型
-     */
-    private int iType;
+    private String type;
 
     /**
      * 名称

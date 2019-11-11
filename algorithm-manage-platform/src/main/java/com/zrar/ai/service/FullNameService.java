@@ -1,6 +1,7 @@
 package com.zrar.ai.service;
 
 import com.zrar.ai.bo.AiModelBO;
+import com.zrar.ai.vo.AiModelVO;
 import com.zrar.ai.vo.FullNameVO;
 
 /**
@@ -11,12 +12,19 @@ import com.zrar.ai.vo.FullNameVO;
 public interface FullNameService {
 
     /**
-     * 从AiModelEntity中获取FullNameVO
-     *
-     * @param aiModelEntity
+     * 从AiModelVO中获取到FullNameVO
+     * @param aiModelVO
      * @return
      */
-    FullNameVO getByAiModelEntity(AiModelBO aiModelEntity);
+    FullNameVO getByAiModel(AiModelVO aiModelVO);
+
+    /**
+     * 从AiModelBO中获取FullNameVO
+     *
+     * @param aiModelBO
+     * @return
+     */
+    FullNameVO getByAiModel(AiModelBO aiModelBO);
 
     /**
      * 通过前缀-类型-名称-版本号，获取FullNameVO
@@ -34,5 +42,5 @@ public interface FullNameService {
      * @param version
      * @return
      */
-    FullNameVO getByTypeNameVersion(int type, String shortName, int version);
+    FullNameVO getByTypeNameVersion(String type, String shortName, int version);
 }

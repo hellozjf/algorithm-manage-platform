@@ -1,7 +1,5 @@
 package com.zrar.ai.service;
 
-import com.zrar.ai.constant.CutMethodEnum;
-
 import java.util.List;
 
 /**
@@ -11,28 +9,28 @@ import java.util.List;
 public interface CutService {
 
     /**
-     * 将sentence，按照CutMethod进行切割
+     * 将sentence，按照cutMethod进行切割
      * @param sentence
-     * @param cutMethodEnum
+     * @param cutMethod
      * @return
      */
-    List<String> getListByMethod(String sentence, CutMethodEnum cutMethodEnum);
+    List<String> getListByMethod(String sentence, String cutMethod);
 
     /**
      * 将sentence，按照CutMethod进行切割，割完组装
      * @param sentence
-     * @param cutMethodEnum
+     * @param cutMethod
      * @return
      */
-    String getStringByMethod(String sentence, CutMethodEnum cutMethodEnum);
+    String getStringByMethod(String sentence, String cutMethod);
 
     /**
      * 将sentence，按照CutMethod进行切割，割完用separator做分隔符组装，如果切不出任何东西返回defaultString
      * @param sentence
-     * @param cutMethodEnum
+     * @param cutMethod
      * @param separator
      * @param defaultString
      * @return
      */
-    String getStringByMethod(String sentence, CutMethodEnum cutMethodEnum, String separator, String defaultString);
+    String getStringByMethod(String sentence, String cutMethod, String separator, String defaultString);
 }

@@ -7,8 +7,8 @@ import lombok.Data;
  */
 @Data
 public class PredictVO {
-    private int type;
-    private int version;
+    private String type;
+    private Integer version;
     private String shortName;
     private String sentence;
 }

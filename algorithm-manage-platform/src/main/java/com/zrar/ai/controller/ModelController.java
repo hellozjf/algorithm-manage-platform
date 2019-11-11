@@ -5,15 +5,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.zrar.ai.config.CustomDockerConfig;
-import com.zrar.ai.constant.CutMethodEnum;
-import com.zrar.ai.constant.ModelParamEnum;
-import com.zrar.ai.constant.ModelTypeEnum;
-import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.bo.AiModelBO;
-import com.zrar.ai.vo.IndexesVO;
-import com.zrar.ai.exception.AlgorithmException;
+import com.zrar.ai.config.CustomDockerConfig;
+import com.zrar.ai.constant.DictItem;
+import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.dao.AiModelDao;
+import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.service.CutService;
 import com.zrar.ai.service.FullNameService;
 import com.zrar.ai.service.StopWordService;
@@ -24,6 +21,7 @@ import com.zrar.ai.vo.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
@@ -86,6 +84,32 @@ public class ModelController {
     @Autowired
     private CutService cutService;
 
+    @PostMapping("/{shortName}/metadata")
+    public ResultVO metadata(@PathVariable("shortName") String shortName,
+                             @RequestBody String sentence) {
+        // 将sentence打包成PredictVO
+        PredictVO predictVO = unpackSentence(shortName, sentence);
+        // 获取对应的实例
+        AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                predictVO.getType(),
+                predictVO.getShortName(),
+                predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
+        FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelEntity);
+
+        if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
+            return ResultUtils.error(ResultEnum.METADATA_DOES_NOT_SUPPORT_MLEAP);
+        } else {
+            try {
+                String result = doGetMetadata(aiModelEntity.getPort(), fullNameVO.getFullName());
+                JsonNode jsonNode = objectMapper.readTree(result);
+                return ResultUtils.success(jsonNode);
+            } catch (Exception e) {
+                log.error("e = ", e);
+                return ResultUtils.error(ResultEnum.GET_METADATA_ERROR);
+            }
+        }
+    }
+
     /**
      * 用模型预测sentence，预测分为两个步骤，第一步获取参数，第二步使用参数预测结果
      *
@@ -104,7 +128,7 @@ public class ModelController {
                 predictVO.getType(),
                 predictVO.getShortName(),
                 predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
+        FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelEntity);
         // 将modelParam转化为ModelParamVO
         ModelParamVO modelParamVO = null;
         try {
@@ -119,14 +143,14 @@ public class ModelController {
         long beforeDoPredict = 0L;
         long afterDoPredict = 0L;
 
-        if (aiModelEntity.getType() == ModelTypeEnum.MLEAP.getCode()) {
+        if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
             // mleap的模型
 
             // 首先获取参数
             String params = null;
             try {
                 beforeGetParams = System.currentTimeMillis();
-                params = getMLeapParams(predictVO.getSentence(), modelParamVO.getParamCode());
+                params = getMLeapParams(predictVO.getSentence(), modelParamVO.getCutMethod());
                 afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -151,7 +175,7 @@ public class ModelController {
                     afterGetParams - beforeGetParams,
                     afterDoPredict - beforeDoPredict));
 
-        } else if (aiModelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+        } else if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
             // tensorflow的模型
 
             // 首先获取参数
@@ -181,57 +205,57 @@ public class ModelController {
             }
 
             // TODO 每增加一个模型，需要增加一个分支
-            if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode()) {
+            if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_DIRTY_WORD)) {
                 // 脏话模型的结果
                 return ResultUtils.success(getTensorflowDirtywordPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_SENTIMENT_ANALYSIS)) {
                 // 情感分析的结果
                 return ResultUtils.success(getTensorflowSentimentAnalysisPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_IS_TAX_ISSUE)) {
                 // 是否税务问题模型的结果
                 return ResultUtils.success(getTensorflowIsTaxIssuePredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_AP_BILSTM)) {
                 // 是否是ap_bilstm模型的结果
                 return ResultUtils.success(getTensorflowApBilstmPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_RERANKING)) {
                 // 是否是reranking模型的结果
                 return ResultUtils.success(getTensorflowRerankingPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_SHEBAO.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_SHEBAO)) {
                 // 社保模型的结果
                 return ResultUtils.success(getTensorflowSocialSecurityResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_FIRSTALL.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_FIRSTALL)) {
                 // 三分类模型的结果
                 return ResultUtils.success(getTensorflowFirstAllResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_SYNTHESIS.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_SYNTHESIS)) {
                 // 综合模型
                 return ResultUtils.success(getTensorflowSynthesisResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_CITY_MANAGEMENT.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_CITY_MANAGEMENT)) {
                 // 城管模型
                 return ResultUtils.success(getTensorflowCityManagementResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_ZNZX)) {
                 // 智能咨询-场景分类模型
                 return ResultUtils.success(getTensorflowZnzxParams(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
-            } else if (modelParamVO.getParamCode().intValue() == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
+            } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_BERT_MATCH)) {
                 // 是否是bert_match模型的结果
                 return ResultUtils.success(getTensorflowBertMatchPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -241,7 +265,7 @@ public class ModelController {
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             }
-        } else if (aiModelEntity.getType() == ModelTypeEnum.COMPOSE.getCode()) {
+        } else if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_COMPOSE)) {
             String[] modelsArray = modelParamVO.getCompose().split(",");
             String result = sentence;
             // 依次调用模型
@@ -283,20 +307,11 @@ public class ModelController {
      * 获取分词数据
      *
      * @param sentence
-     * @param paramCode
+     * @param cutMethod
      * @return
      */
-//    @GetMapping("/getRawMLeapParams")
-    public String getRawMLeapParams(String sentence, int paramCode) {
-        CutMethodEnum cutMethodEnum = null;
-        if (paramCode == ModelParamEnum.MLEAP_CUT_WORD.getCode()) {
-            cutMethodEnum = CutMethodEnum.WORD_CUT;
-        } else if (paramCode == ModelParamEnum.MLEAP_CUT_WORD_VSWZYC.getCode()) {
-            cutMethodEnum = CutMethodEnum.WORD_CUT_VSWZYC;
-        } else if (paramCode == ModelParamEnum.MLEAP_PHRASE_LIST.getCode()) {
-            cutMethodEnum = CutMethodEnum.PHRASE_LIST;
-        }
-        return cutService.getStringByMethod(sentence, cutMethodEnum);
+    public String getRawMLeapParams(String sentence, String cutMethod) {
+        return cutService.getStringByMethod(sentence, cutMethod);
     }
 
 //    /**
@@ -387,8 +402,7 @@ public class ModelController {
         }
 
         // 切字
-        CutMethodEnum cutMethodEnum = CutMethodEnum.getByCode(modelParamVO.getParamCode());
-        List<String> wordList = cutService.getListByMethod(sentence, cutMethodEnum);
+        List<String> wordList = cutService.getListByMethod(sentence, modelParamVO.getCutMethod());
 
         // 加开始和结束符
         wordList.add(0, "[CLS]");
@@ -442,7 +456,7 @@ public class ModelController {
      */
     private String removeStopWord(String sentence) {
         // 1. 切词
-        List<String> wordList = cutService.getListByMethod(sentence, CutMethodEnum.WORD_CUT);
+        List<String> wordList = cutService.getListByMethod(sentence, DictItem.CUT_METHOD_WORD_CUT);
         // 2. 读取停词
         List<String> stopWordList = stopWordService.getStopWord();
         // 3. 过滤停词，拼接字符串，返回结果
@@ -458,7 +472,6 @@ public class ModelController {
      * @param modelParamVO
      * @return
      */
-//    @GetMapping("/getRawTensorflowParams")
     public String getRawTensorflowParams(String sentence, ModelParamVO modelParamVO) {
         return getRawJavaTensorflowParams(sentence, modelParamVO);
 
@@ -519,12 +532,11 @@ public class ModelController {
      * 获取喂给mleap的数据
      *
      * @param sentence
-     * @param paramCode
+     * @param cutMethod
      * @return
      */
-//    @GetMapping("/getMLeapParams")
-    public String getMLeapParams(String sentence, int paramCode) {
-        String res = getRawMLeapParams(sentence, paramCode);
+    public String getMLeapParams(String sentence, String cutMethod) {
+        String res = getRawMLeapParams(sentence, cutMethod);
         return "{\"schema\":{\"fields\":[{\"shortName\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
     }
 
@@ -535,7 +547,6 @@ public class ModelController {
      * @param modelParamVO
      * @return
      */
-//    @GetMapping("/getTensorflowParams")
     public String getTensorflowParams(String sentence, ModelParamVO modelParamVO) {
         String res = getRawTensorflowParams(sentence, modelParamVO);
         return "{\"instances\": [" + res + "]}";
@@ -556,11 +567,11 @@ public class ModelController {
      * @return
      * @throws Exception
      */
-    private String getParams(String sentence, int modelType, ModelParamVO modelParamVO) {
+    private String getParams(String sentence, String modelType, ModelParamVO modelParamVO) {
         // 获取参数
-        if (modelType == ModelTypeEnum.MLEAP.getCode()) {
-            return getMLeapParams(sentence, modelParamVO.getParamCode().intValue());
-        } else if (modelType == ModelTypeEnum.TENSORFLOW.getCode()) {
+        if (modelType.equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
+            return getMLeapParams(sentence, modelParamVO.getCutMethod());
+        } else if (modelType.equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
             return getTensorflowParams(sentence, modelParamVO);
         } else {
             log.error("unknown modelType = {}", modelType);
@@ -635,6 +646,26 @@ public class ModelController {
         StringEntity stringEntity = new StringEntity(params, ContentType.APPLICATION_JSON);
         httpPost.setEntity(stringEntity);
         CloseableHttpResponse response = httpClient.execute(httpPost);
+        HttpEntity entity = response.getEntity();
+        return EntityUtils.toString(entity);
+    }
+
+    /**
+     * 获取元数据
+     * @param port
+     * @param fullName
+     * @return
+     * @throws Exception
+     */
+    private String doGetMetadata(int port, String fullName) throws Exception {
+        URI uri = new URIBuilder()
+                .setScheme("http")
+                .setHost(customDockerConfig.getRestIp())
+                .setPort(port)
+                .setPath("/v1/models/" + fullName + "/metadata")
+                .build();
+        HttpGet httpGet = new HttpGet(uri);
+        CloseableHttpResponse response = httpClient.execute(httpGet);
         HttpEntity entity = response.getEntity();
         return EntityUtils.toString(entity);
     }
@@ -1197,18 +1228,24 @@ public class ModelController {
             jsonNode = objectMapper.readTree(ps);
         } catch (IOException e) {
             log.error("e = {}", e);
-            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR.getCode(), ps);
+        }
+
+        if (jsonNode.get("error") != null) {
+            throw new AlgorithmException(ResultEnum.PREDICT_ERROR.getCode(), jsonNode.get("error").asText());
         }
 
         JsonNode predictions = jsonNode.get("predictions");
         ArrayNode arrayNode = (ArrayNode) predictions;
         arrayNode = (ArrayNode) arrayNode.get(0);
-        double p0 = arrayNode.get(0).doubleValue();
-        double p1 = arrayNode.get(1).doubleValue();
-        double p2 = arrayNode.get(2).doubleValue();
-        double p3 = arrayNode.get(3).doubleValue();
-        double p4 = arrayNode.get(4).doubleValue();
-        double p5 = arrayNode.get(5).doubleValue();
+        double p0 = arrayNode.get(0) == null ? 0 : arrayNode.get(0).doubleValue();
+        double p1 = arrayNode.get(1) == null ? 0 : arrayNode.get(1).doubleValue();
+        double p2 = arrayNode.get(2) == null ? 0 : arrayNode.get(2).doubleValue();
+        double p3 = arrayNode.get(3) == null ? 0 : arrayNode.get(3).doubleValue();
+        double p4 = arrayNode.get(4) == null ? 0 : arrayNode.get(4).doubleValue();
+        double p5 = arrayNode.get(5) == null ? 0 : arrayNode.get(5).doubleValue();
+        double p6 = arrayNode.get(6) == null ? 0 : arrayNode.get(6).doubleValue();
+        double p7 = arrayNode.get(7) == null ? 0 : arrayNode.get(7).doubleValue();
         int value = 0;
         double p = p0;
         if (p1 > p) {
@@ -1230,6 +1267,14 @@ public class ModelController {
         if (p5 > p) {
             value = 5;
             p = p5;
+        }
+        if (p6 > p) {
+            value = 6;
+            p = p6;
+        }
+        if (p7 > p) {
+            value = 7;
+            p = p7;
         }
 
         JsonNode paramsNode = null;
@@ -1259,6 +1304,12 @@ public class ModelController {
                 break;
             case 5:
                 predictResultVO.setPredictString("社保类别");
+                break;
+            case 6:
+                predictResultVO.setPredictString("文件查询");
+                break;
+            case 7:
+                predictResultVO.setPredictString("征期查询");
                 break;
         }
         predictResultVO.setPredict(value);
@@ -1461,8 +1512,8 @@ public class ModelController {
                 for (AiModelBO aiModelEntity : aiModelEntityList) {
                     if (wanted == null) {
                         wanted = aiModelEntity;
-                    } else if (wanted.getType() == ModelTypeEnum.MLEAP.getCode() &&
-                            aiModelEntity.getType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+                    } else if (wanted.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP) &&
+                            aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
                         wanted = aiModelEntity;
                     } else if (aiModelEntity.getVersion() > wanted.getVersion()) {
                         wanted = aiModelEntity;

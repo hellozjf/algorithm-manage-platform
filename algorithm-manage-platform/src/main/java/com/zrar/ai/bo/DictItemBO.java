@@ -13,7 +13,7 @@ import javax.persistence.*;
 @Slf4j
 @Entity
 @Data
-@Table(name = "dict_detail")
+@Table(name = "dict_item")
 public class DictItemBO extends BaseBO {
 
     /**

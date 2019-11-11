@@ -36,10 +36,9 @@ public class AiModelVO {
 
     /**
      * 模型类型，目前支持mleap和tensorflow
-     * @see com.zrar.ai.constant.ModelTypeEnum
      */
-    @ApiModelProperty(value = "模型类型", example = "1")
-    private Integer type;
+    @ApiModelProperty(value = "模型类型")
+    private String type;
 
     /**
      * 模型参数

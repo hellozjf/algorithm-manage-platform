@@ -40,7 +40,8 @@ public enum ResultEnum {
     MODEL_EXIST_CANNOT_ADD_ERROR(29, "模型已存在，无法新建"),
     CAN_NOT_FIND_DICT_ERROR(30, "找不到数据字典项"),
     CAN_NOT_FIND_DICT_DETAIL_ERROR(31, "找不到数据字典详情项"),
-    ;
+    METADATA_DOES_NOT_SUPPORT_MLEAP(32, "mleap不支持metadata"),
+    GET_METADATA_ERROR(33, "获取metadata失败");
 
     Integer code;
     String message;

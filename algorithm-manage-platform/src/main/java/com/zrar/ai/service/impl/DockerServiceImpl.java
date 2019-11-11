@@ -6,14 +6,14 @@ import cn.hutool.core.util.RuntimeUtil;
 import cn.hutool.core.util.ZipUtil;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.messages.*;
+import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.config.CustomWorkdirConfig;
-import com.zrar.ai.constant.ModelTypeEnum;
+import com.zrar.ai.constant.DictItem;
 import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.constant.StateEnum;
-import com.zrar.ai.bo.AiModelBO;
-import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.dao.AiModelDao;
+import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.service.*;
 import com.zrar.ai.vo.FullNameVO;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * docker服务
@@ -81,7 +84,7 @@ public class DockerServiceImpl implements DockerService {
             List<AiModelBO> aiModelEntityList = aiModelRepository.findAll();
             for (AiModelBO aiModelEntity : aiModelEntityList) {
                 boolean bFind = false;
-                FullNameVO fullNameVO = fullNameService.getByAiModelEntity(aiModelEntity);
+                FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelEntity);
                 for (Container container : containerList) {
                     if (isContainerNameEquals(container, fullNameVO.getFullName())) {
                         bFind = true;
@@ -198,11 +201,11 @@ public class DockerServiceImpl implements DockerService {
         String image = null;
         String folderBindStr = null;
         int port = -1;
-        if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
+        if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
             image = imageService.getMleap();
             port = 65327;
             folderBindStr = customDockerConfig.getModelOutter() + ":/models";
-        } else if (fullNameVO.getIType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+        } else if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
             image = imageService.getTensorflow();
             port = 8501;
             folderBindStr = customDockerConfig.getModelOutter() + "/" + fullName + ":/models/" + fullName;
@@ -230,7 +233,7 @@ public class DockerServiceImpl implements DockerService {
 
             // 这里还需要把端口同步到数据库中
             AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
-                    fullNameVO.getIType(),
+                    fullNameVO.getType(),
                     fullNameVO.getShortName(),
                     fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.JSON_ERROR));
             aiModelEntity.setPort(randomPort);
@@ -261,7 +264,7 @@ public class DockerServiceImpl implements DockerService {
                 dockerClient.startContainer(container.id());
                 // todo 如果更换过端口，需要把这个新端口保存到数据库中
 
-                if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
+                if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
                     // 还要把mleap模型上线
                     log.debug("开始恢复{}", fullName);
                     mLeapService.online(fullName);
@@ -269,7 +272,7 @@ public class DockerServiceImpl implements DockerService {
 
                 // 数据库修改模型的状态
                 AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
-                        fullNameVO.getIType(),
+                        fullNameVO.getType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
                 aiModelEntity.setState(StateEnum.RUNNING.getState());
@@ -289,7 +292,7 @@ public class DockerServiceImpl implements DockerService {
      * @param fullNameVO
      */
     private void checkEnvironment(FullNameVO fullNameVO) {
-        if (fullNameVO.getIType() == ModelTypeEnum.MLEAP.getCode()) {
+        if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
             // 检查模型文件是否存在
             File file = new File(fileService.getModelWorkFilePath(fullNameVO.getFullName()));
             if (!file.exists() || !file.isFile()) {
@@ -301,7 +304,7 @@ public class DockerServiceImpl implements DockerService {
                 String result = RuntimeUtil.execForStr(cmd);
                 log.debug("{} return {}", cmd, result);
             }
-        } else if (fullNameVO.getIType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+        } else if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
             // 检查模型文件是否存在
             File file = new File(fileService.getModelWorkFilePath(fullNameVO.getFullName()));
             if (!file.exists() || !file.isFile()) {
@@ -315,7 +318,7 @@ public class DockerServiceImpl implements DockerService {
             // 解压文件
             unpackModel(fullNameVO.getFullName());
         } else {
-            log.error("unknown type {}", fullNameVO.getIType());
+            log.error("unknown type {}", fullNameVO.getType());
             throw new AlgorithmException(ResultEnum.UNKNOWN_MODEL_TYPE);
         }
     }
@@ -327,7 +330,7 @@ public class DockerServiceImpl implements DockerService {
         for (Container container : containerList) {
             if (isContainerNameEquals(container, fullName)) {
                 dockerClient.stopContainer(container.id(), 2);
-                if (fullNameVO.getIType() == ModelTypeEnum.TENSORFLOW.getCode()) {
+                if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
                     // tensorflow模型就把对应的文件夹删了吧
                     File folder = new File(customWorkdirConfig.getModel(), fullNameVO.getFullName());
                     if (folder.exists()) {
@@ -343,7 +346,7 @@ public class DockerServiceImpl implements DockerService {
 
                 // 数据库修改模型的状态
                 AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
-                        fullNameVO.getIType(),
+                        fullNameVO.getType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
                 aiModelEntity.setState(StateEnum.EXITED.getState());

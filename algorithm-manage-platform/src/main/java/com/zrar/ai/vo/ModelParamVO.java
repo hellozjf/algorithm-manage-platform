@@ -6,8 +6,9 @@ import lombok.Data;
  * {
  *   "removePunctuation": false,
  *   "removeStopWord": true,
+ *   "cutMethod": "char_cut",
  *   "length": 128,
- *   "paramCode": 102,
+ *   "modelName": "bert_match",
  *   "compose": "ap,bi",
  *   "haveLabelIds": true
  * }
@@ -32,7 +33,7 @@ public class ModelParamVO {
      * mleap：切词、切词——税务专有词、切短语
      * tensorflow：切字
      */
-    private Integer cutMethod;
+    private String cutMethod;
 
     /**
      * 位数
@@ -40,10 +41,9 @@ public class ModelParamVO {
     private Integer length;
 
     /**
-     * 参数代码
-     * @see com.zrar.ai.constant.ModelParamEnum
+     * 模型名称
      */
-    private Integer paramCode;
+    private String modelName;
 
     /**
      * 组合类型，例如：ap,bi
