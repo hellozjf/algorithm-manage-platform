@@ -537,7 +537,7 @@ public class ModelController {
      */
     public String getMLeapParams(String sentence, String cutMethod) {
         String res = getRawMLeapParams(sentence, cutMethod);
-        return "{\"schema\":{\"fields\":[{\"shortName\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
+        return "{\"schema\":{\"fields\":[{\"name\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
     }
 
     /**

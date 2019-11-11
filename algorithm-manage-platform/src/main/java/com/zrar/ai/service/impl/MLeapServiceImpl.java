@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zrar.ai.bo.AiModelBO;
+import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.constant.ResultEnum;
 import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.exception.AlgorithmException;
@@ -41,6 +42,9 @@ public class MLeapServiceImpl implements MLeapService {
 
     @Autowired
     private FullNameService fullNameService;
+
+    @Autowired
+    private CustomDockerConfig customDockerConfig;
 
     @Override
     public String online(String fullName) {
@@ -135,7 +139,7 @@ public class MLeapServiceImpl implements MLeapService {
                 fullNameVO.getType(),
                 fullNameVO.getShortName(),
                 fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        String url = "http://localhost:" + aiModelEntity.getPort() + "/" + type;
+        String url = "http://" + customDockerConfig.getRestIp() +":" + aiModelEntity.getPort() + "/" + type;
         return url;
     }
 }

@@ -300,7 +300,7 @@ public class DockerServiceImpl implements DockerService {
             }
             if (customWorkdirConfig.isNeedCopy()) {
                 // 把模型拷贝到 docker宿主机的模型目录
-                String cmd = remoteService.createScpCommand(file.getAbsolutePath(), customDockerConfig.getModelOutter());
+                String cmd = remoteService.createScpCommand(file.getPath(), fileService.getModelOutterFilePath(fullNameVO.getFullName()));
                 String result = RuntimeUtil.execForStr(cmd);
                 log.debug("{} return {}", cmd, result);
             }

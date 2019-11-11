@@ -1,12 +1,9 @@
 package com.zrar.ai.controller;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RuntimeUtil;
 import cn.hutool.crypto.digest.Digester;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.config.CustomWorkdirConfig;
 import com.zrar.ai.constant.DictItem;
@@ -19,7 +16,6 @@ import com.zrar.ai.vo.FullNameVO;
 import com.zrar.ai.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,7 +32,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 页面上所使用的controller

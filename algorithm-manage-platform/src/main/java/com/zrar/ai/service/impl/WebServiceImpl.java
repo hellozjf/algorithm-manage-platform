@@ -83,7 +83,9 @@ public class WebServiceImpl implements WebService {
 
     @Override
     public AiModelVO updateMd5(AiModelVO aiModelVO, String md5) {
+        AiModelBO oldAiModelBO = aiModelDao.findById(aiModelVO.getId()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
         AiModelBO aiModelBO = convert(aiModelVO);
+        aiModelBO.setGmtCreate(oldAiModelBO.getGmtCreate());
         aiModelBO.setMd5(md5);
         aiModelBO = aiModelDao.save(aiModelBO);
         return convert(aiModelBO);
@@ -122,6 +124,12 @@ public class WebServiceImpl implements WebService {
                 aiModelBO.setId(null);
                 aiModelBO.setPort(dockerService.getRandomPort());
                 aiModelBO.setVersion(oldAiModelEntity.getVersion() + 1);
+                try {
+                    aiModelBO.setParam(objectMapper.writeValueAsString(aiModelVO.getParam()));
+                } catch (JsonProcessingException e) {
+                    log.error("e = ", e);
+                    throw new AlgorithmException(ResultEnum.JSON_ERROR);
+                }
             } else {
                 // 新建一个
                 aiModelBO = new AiModelBO();
@@ -129,6 +137,12 @@ public class WebServiceImpl implements WebService {
                 aiModelBO.setId(null);
                 aiModelBO.setPort(dockerService.getRandomPort());
                 aiModelBO.setVersion(1);
+                try {
+                    aiModelBO.setParam(objectMapper.writeValueAsString(aiModelVO.getParam()));
+                } catch (JsonProcessingException e) {
+                    log.error("e = ", e);
+                    throw new AlgorithmException(ResultEnum.JSON_ERROR);
+                }
             }
         } else {
             Optional<AiModelBO> optionalAiModelEntity = aiModelDao.findByTypeAndShortNameAndVersion(type, shortName, version);
@@ -147,6 +161,12 @@ public class WebServiceImpl implements WebService {
                 // 新建一个
                 aiModelBO = new AiModelBO();
                 BeanUtils.copyProperties(aiModelVO, aiModelBO);
+                try {
+                    aiModelBO.setParam(objectMapper.writeValueAsString(aiModelVO.getParam()));
+                } catch (JsonProcessingException e) {
+                    log.error("e = ", e);
+                    throw new AlgorithmException(ResultEnum.JSON_ERROR);
+                }
                 aiModelBO.setVersion(1);
             }
         }
