@@ -3,6 +3,10 @@ package com.zrar.ai.controller;
 import com.zrar.ai.service.DictService;
 import com.zrar.ai.vo.DictQueryVO;
 import com.zrar.ai.vo.DictVO;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
+@Api(tags = "数据字典管理接口")
 @RequestMapping("/dict")
 public class DictController {
 
@@ -30,6 +35,7 @@ public class DictController {
      * @param pageable
      * @return
      */
+    @ApiOperation("通过条件和分页查询数据字典")
     @GetMapping
     public ResponseEntity getAllDicts(DictQueryVO queryVO, Pageable pageable) {
         Page<DictVO> dictVOPage = dictService.getPage(queryVO, pageable);
@@ -42,6 +48,7 @@ public class DictController {
      * @param dictVO
      * @return
      */
+    @ApiOperation("添加数据字典")
     @PostMapping
     public ResponseEntity addDict(@RequestBody DictVO dictVO) {
         DictVO newDictVO = dictService.insert(dictVO);
@@ -54,6 +61,7 @@ public class DictController {
      * @param dictVO
      * @return
      */
+    @ApiOperation("更新数据字典")
     @PutMapping
     public ResponseEntity updateDict(@RequestBody DictVO dictVO) {
         dictService.update(dictVO);
@@ -66,6 +74,7 @@ public class DictController {
      * @param id
      * @return
      */
+    @ApiOperation("删除数据字典")
     @DeleteMapping(value = "/{id}")
     public ResponseEntity deleteDicts(@PathVariable String id) {
         dictService.deleteById(id);

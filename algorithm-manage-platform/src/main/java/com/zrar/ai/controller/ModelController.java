@@ -286,7 +286,7 @@ public class ModelController {
      * @param paramCode
      * @return
      */
-    @GetMapping("/getRawMLeapParams")
+//    @GetMapping("/getRawMLeapParams")
     public String getRawMLeapParams(String sentence, int paramCode) {
         CutMethodEnum cutMethodEnum = null;
         if (paramCode == ModelParamEnum.MLEAP_CUT_WORD.getCode()) {
@@ -458,7 +458,7 @@ public class ModelController {
      * @param modelParamVO
      * @return
      */
-    @GetMapping("/getRawTensorflowParams")
+//    @GetMapping("/getRawTensorflowParams")
     public String getRawTensorflowParams(String sentence, ModelParamVO modelParamVO) {
         return getRawJavaTensorflowParams(sentence, modelParamVO);
 
@@ -522,7 +522,7 @@ public class ModelController {
      * @param paramCode
      * @return
      */
-    @GetMapping("/getMLeapParams")
+//    @GetMapping("/getMLeapParams")
     public String getMLeapParams(String sentence, int paramCode) {
         String res = getRawMLeapParams(sentence, paramCode);
         return "{\"schema\":{\"fields\":[{\"shortName\":\"word\",\"type\":\"string\"}]},\"rows\":[[\"" + res + "\"]]}";
@@ -535,7 +535,7 @@ public class ModelController {
      * @param modelParamVO
      * @return
      */
-    @GetMapping("/getTensorflowParams")
+//    @GetMapping("/getTensorflowParams")
     public String getTensorflowParams(String sentence, ModelParamVO modelParamVO) {
         String res = getRawTensorflowParams(sentence, modelParamVO);
         return "{\"instances\": [" + res + "]}";
