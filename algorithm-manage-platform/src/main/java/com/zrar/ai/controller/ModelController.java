@@ -480,12 +480,12 @@ public class ModelController {
 //                paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
 //                paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
 //            return getRawJavaTensorflowParams(sentence, paramCode, 128);
-//        } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_ap_bilstm.getCode()) {
 //            // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
 //            return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
 //        } else if (paramCode == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
 //            return getRawJavaTensorflowParams(sentence, paramCode, 84);
-//        } else if (paramCode == ModelParamEnum.TENSORFLOW_RERANKING.getCode()) {
+//        } else if (paramCode == ModelParamEnum.TENSORFLOW_reranking.getCode()) {
 //            // 问答模型处理很复杂
 //            String result = getRawPythonTensorflowParams(sentence, paramCode, "", 120);
 //            try {
