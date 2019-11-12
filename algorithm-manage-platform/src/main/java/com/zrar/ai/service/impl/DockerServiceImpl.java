@@ -5,6 +5,7 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.RuntimeUtil;
 import cn.hutool.core.util.ZipUtil;
 import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.exceptions.DockerRequestException;
 import com.spotify.docker.client.messages.*;
 import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.config.CustomDockerConfig;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * docker服务
@@ -35,7 +37,7 @@ import java.util.Map;
 public class DockerServiceImpl implements DockerService {
 
     @Autowired
-    private AiModelDao aiModelRepository;
+    private AiModelDao aiModelDao;
 
     @Autowired
     private MLeapService mLeapService;
@@ -80,7 +82,7 @@ public class DockerServiceImpl implements DockerService {
 
             // 将当前容器的状态与数据库的记录进行同步
             List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
-            List<AiModelBO> aiModelEntityList = aiModelRepository.findAll();
+            List<AiModelBO> aiModelEntityList = aiModelDao.findAll();
             for (AiModelBO aiModelEntity : aiModelEntityList) {
                 boolean bFind = false;
                 FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelEntity);
@@ -178,7 +180,7 @@ public class DockerServiceImpl implements DockerService {
         int maxPort = customDockerConfig.getPortRangeMax();
         do {
             int randomPort = RandomUtil.randomInt(minPort, maxPort);
-            if (aiModelRepository.findByPort(randomPort).size() == 0) {
+            if (aiModelDao.findByPort(randomPort).size() == 0) {
                 // 找到一个未被使用的端口才返回
                 return randomPort;
             }
@@ -231,12 +233,12 @@ public class DockerServiceImpl implements DockerService {
             ContainerCreation container = dockerClient.createContainer(containerConfig, fullName);
 
             // 这里还需要把端口同步到数据库中
-            AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+            AiModelBO aiModelEntity = aiModelDao.findByTypeAndShortNameAndVersion(
                     fullNameVO.getType(),
                     fullNameVO.getShortName(),
                     fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.JSON_ERROR));
             aiModelEntity.setPort(randomPort);
-            aiModelRepository.save(aiModelEntity);
+            aiModelDao.save(aiModelEntity);
 
             return container;
         } else {
@@ -259,9 +261,28 @@ public class DockerServiceImpl implements DockerService {
                 // 启动前先要判断环境是否正常
                 checkEnvironment(fullNameVO);
 
-                // todo 启动的时候有可能会出现端口冲突，这个时候应该要为它更换一个端口
-                dockerClient.startContainer(container.id());
-                // todo 如果更换过端口，需要把这个新端口保存到数据库中
+                while (true) {
+                    try {
+                        dockerClient.startContainer(container.id());
+                        // 启动成功就退出来
+                        break;
+                    } catch (DockerRequestException e) {
+                        log.error("e = ", e);
+
+                        // 然后要把原容器删了，生成新的容器（会自动生成新端口），把运行环境配置好
+                        deleteDocker(fullName);
+                        createDocker(fullName);
+                        List<Container> newContainerList = dockerClient.listContainers(DockerClient.ListContainersParam.allContainers());
+                        for (Container newContainer : newContainerList) {
+                            if (isContainerNameEquals(newContainer, fullName)) {
+                                // 启动前先要判断环境是否正常
+                                checkEnvironment(fullNameVO);
+                                container = newContainer;
+                                break;
+                            }
+                        }
+                    }
+                }
 
                 if (fullNameVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
                     // 还要把mleap模型上线
@@ -270,12 +291,12 @@ public class DockerServiceImpl implements DockerService {
                 }
 
                 // 数据库修改模型的状态
-                AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                AiModelBO aiModelEntity = aiModelDao.findByTypeAndShortNameAndVersion(
                         fullNameVO.getType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
                 aiModelEntity.setState(DictItem.MODEL_STATE_RUNNING);
-                aiModelRepository.save(aiModelEntity);
+                aiModelDao.save(aiModelEntity);
 
                 break;
             }
@@ -344,12 +365,12 @@ public class DockerServiceImpl implements DockerService {
                 }
 
                 // 数据库修改模型的状态
-                AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+                AiModelBO aiModelEntity = aiModelDao.findByTypeAndShortNameAndVersion(
                         fullNameVO.getType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
                 aiModelEntity.setState(DictItem.MODEL_STATE_EXISTED);
-                aiModelRepository.save(aiModelEntity);
+                aiModelDao.save(aiModelEntity);
 
                 break;
             }

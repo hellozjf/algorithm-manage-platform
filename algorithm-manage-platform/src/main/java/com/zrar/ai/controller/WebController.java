@@ -397,20 +397,4 @@ public class WebController {
         }
         return aiModelVO;
     }
-
-    /**
-     * 获取所有模型类型
-     *
-     * @return
-     */
-    @GetMapping("/getAllModelType")
-    public ResultVO getAllModelType() {
-        List<Map<Integer, String>> mapList = new ArrayList<>();
-//        for (ModelTypeEnum modelTypeEnum : ModelTypeEnum.values()) {
-//            Map<Integer, String> map = new HashMap<>();
-//            map.put(modelTypeEnum.getCode(), modelTypeEnum.getDescription());
-//            mapList.add(map);
-//        }
-        return ResultUtils.success(mapList);
-    }
 }
