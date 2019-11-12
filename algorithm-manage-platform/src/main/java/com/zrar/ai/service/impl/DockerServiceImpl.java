@@ -11,7 +11,6 @@ import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.config.CustomWorkdirConfig;
 import com.zrar.ai.constant.DictItem;
 import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.constant.StateEnum;
 import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.exception.AlgorithmException;
 import com.zrar.ai.service.*;
@@ -90,7 +89,7 @@ public class DockerServiceImpl implements DockerService {
                         bFind = true;
                         if (!aiModelEntity.getState().equalsIgnoreCase(container.state())) {
                             // 数据库中的状态与实际容器的状态不一致
-                            if (aiModelEntity.getState().equalsIgnoreCase(StateEnum.RUNNING.getState())) {
+                            if (aiModelEntity.getState().equalsIgnoreCase(DictItem.MODEL_STATE_RUNNING)) {
                                 startDocker(fullNameVO.getFullName());
                             } else {
                                 stopDocker(fullNameVO.getFullName());
@@ -102,7 +101,7 @@ public class DockerServiceImpl implements DockerService {
                 if (!bFind) {
                     // 数据库中有，但是容器中没有，那么就要重新创建一个容器
                     createDocker(fullNameVO.getFullName());
-                    if (aiModelEntity.getState().equalsIgnoreCase(StateEnum.RUNNING.getState())) {
+                    if (aiModelEntity.getState().equalsIgnoreCase(DictItem.MODEL_STATE_RUNNING)) {
                         startDocker(fullNameVO.getFullName());
                     }
                 }
@@ -275,7 +274,7 @@ public class DockerServiceImpl implements DockerService {
                         fullNameVO.getType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-                aiModelEntity.setState(StateEnum.RUNNING.getState());
+                aiModelEntity.setState(DictItem.MODEL_STATE_RUNNING);
                 aiModelRepository.save(aiModelEntity);
 
                 break;
@@ -349,7 +348,7 @@ public class DockerServiceImpl implements DockerService {
                         fullNameVO.getType(),
                         fullNameVO.getShortName(),
                         fullNameVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-                aiModelEntity.setState(StateEnum.EXITED.getState());
+                aiModelEntity.setState(DictItem.MODEL_STATE_EXISTED);
                 aiModelRepository.save(aiModelEntity);
 
                 break;

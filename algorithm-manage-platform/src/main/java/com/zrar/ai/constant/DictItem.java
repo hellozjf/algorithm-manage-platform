@@ -40,6 +40,12 @@ public class DictItem {
     public static final String MODEL_NAME_BERT_MATCH = "bert_match";
 
     /**
+     * MODEL_STATE
+     */
+    public static final String MODEL_STATE_RUNNING = "running";
+    public static final String MODEL_STATE_EXISTED = "existed";
+
+    /**
      * EXCEPTION
      */
     public static final String EXCEPTION_FILE_CAN_NOT_BE_EMPTY = "FILE_CAN_NOT_BE_EMPTY";
