@@ -8,6 +8,7 @@ mvnw.cmd
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**
 !**/src/test/**
+python/tmp/**
 
 ### STS ###
 .apt_generated
