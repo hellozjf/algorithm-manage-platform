@@ -1,21 +1,15 @@
 package com.zrar.ai.controller;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RuntimeUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.zrar.ai.bo.AiModelBO;
 import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.constant.DictItem;
 import com.zrar.ai.constant.ResultEnum;
-import com.zrar.ai.dao.AiModelDao;
 import com.zrar.ai.exception.AlgorithmException;
-import com.zrar.ai.service.CutService;
-import com.zrar.ai.service.FullNameService;
-import com.zrar.ai.service.StopWordService;
-import com.zrar.ai.service.VocabMapService;
+import com.zrar.ai.service.*;
 import com.zrar.ai.util.JsonUtils;
 import com.zrar.ai.util.ResultUtils;
 import com.zrar.ai.vo.*;
@@ -34,10 +28,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -75,9 +71,6 @@ public class ModelController {
     private StopWordService stopWordService;
 
     @Autowired
-    private AiModelDao aiModelRepository;
-
-    @Autowired
     private CustomDockerConfig customDockerConfig;
 
     @Autowired
@@ -86,23 +79,26 @@ public class ModelController {
     @Autowired
     private CutService cutService;
 
+    @Autowired
+    private AiModelService aiModelService;
+
     @PostMapping("/{shortName}/metadata")
     public ResultVO metadata(@PathVariable("shortName") String shortName,
                              @RequestBody String sentence) {
         // 将sentence打包成PredictVO
         PredictVO predictVO = unpackSentence(shortName, sentence);
         // 获取对应的实例
-        AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+        AiModelVO aiModelVO = aiModelService.findByTypeAndShortNameAndVersion(
                 predictVO.getType(),
                 predictVO.getShortName(),
-                predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelEntity);
+                predictVO.getVersion());
+        FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
 
-        if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
+        if (aiModelVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
             return ResultUtils.error(ResultEnum.METADATA_DOES_NOT_SUPPORT_MLEAP);
         } else {
             try {
-                String result = doGetMetadata(aiModelEntity.getPort(), fullNameVO.getFullName());
+                String result = doGetMetadata(aiModelVO.getPort(), fullNameVO.getFullName());
                 JsonNode jsonNode = objectMapper.readTree(result);
                 return ResultUtils.success(jsonNode);
             } catch (Exception e) {
@@ -126,18 +122,13 @@ public class ModelController {
         // 将sentence打包成PredictVO
         PredictVO predictVO = unpackSentence(shortName, sentence);
         // 获取对应的实例
-        AiModelBO aiModelEntity = aiModelRepository.findByTypeAndShortNameAndVersion(
+        AiModelVO aiModelVO = aiModelService.findByTypeAndShortNameAndVersion(
                 predictVO.getType(),
                 predictVO.getShortName(),
-                predictVO.getVersion()).orElseThrow(() -> new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR));
-        FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelEntity);
+                predictVO.getVersion());
+        FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
         // 将modelParam转化为ModelParamVO
-        ModelParamVO modelParamVO = null;
-        try {
-            modelParamVO = objectMapper.readValue(aiModelEntity.getParam(), ModelParamVO.class);
-        } catch (IOException e) {
-            throw new AlgorithmException(ResultEnum.JSON_ERROR);
-        }
+        ModelParamVO modelParamVO = aiModelVO.getParam();
 
         // 要记录getParam和doPredict所需要花费的时间
         long beforeGetParams = 0L;
@@ -145,7 +136,7 @@ public class ModelController {
         long beforeDoPredict = 0L;
         long afterDoPredict = 0L;
 
-        if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
+        if (aiModelVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP)) {
             // mleap的模型
 
             // 首先获取参数
@@ -166,7 +157,7 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-                ps = doMLeapPredict(aiModelEntity.getPort(), params);
+                ps = doMLeapPredict(aiModelVO.getPort(), params);
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -176,7 +167,7 @@ public class ModelController {
                     afterGetParams - beforeGetParams,
                     afterDoPredict - beforeDoPredict));
 
-        } else if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
+        } else if (aiModelVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
             // tensorflow的模型
 
             // 首先获取参数
@@ -196,7 +187,7 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-                ps = doTensorflowPredict(aiModelEntity.getPort(), fullNameVO.getFullName(), params);
+                ps = doTensorflowPredict(aiModelVO.getPort(), fullNameVO.getFullName(), params);
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -264,7 +255,7 @@ public class ModelController {
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             }
-        } else if (aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_COMPOSE)) {
+        } else if (aiModelVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_COMPOSE)) {
             String[] modelsArray = modelParamVO.getCompose().split(",");
             String result = sentence;
             // 依次调用模型
@@ -312,74 +303,6 @@ public class ModelController {
     public String getRawMLeapParams(String sentence, String cutMethod) {
         return cutService.getStringByMethod(sentence, cutMethod);
     }
-
-//    /**
-//     * 通过Java获取问答模型Tensorflow前处理后的参数
-//     *
-//     * @param sentence
-//     * @param paramCode
-//     * @return
-//     */
-//    private String getRawJavaQaTensorflowParams(String sentence, int paramCode) {
-//
-//        // 最大词长度120
-//        int maxLength = 120;
-//
-//        // 加载停用词
-//        List<String> stopWordList = stopWordService.getStopWordByPath("static/tensorflow/qa/stopwords.txt");
-//
-//        // 加载词典
-//        Map<String, Integer> dictMap = vocabMapService.getVocabMapByPath("static/tensorflow/qa/vocabulary.txt");
-//
-//        // 将答案“增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。”进行切词，并过滤掉其中的停用词，并将切词转向量
-//        String answerString = "增值税发票系统升级版纳税人端税控设备包括金税盘和税控盘。";
-//        List<String> answerStringList = WordUtils.getWordCutList(answerString, "").stream()
-//                .filter(wordCut -> !stopWordList.contains(wordCut))
-//                .collect(Collectors.toList());
-//        log.debug("{}", answerStringList);
-//        List<Integer> answer = answerStringList.stream().map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
-//                .collect(Collectors.toList());
-//
-//        // 获取答案切词长度，并补足或截断长度
-//        int answerLen = answer.size();
-//        answer = fillLength(maxLength, answer, answerLen);
-//
-//        // 将问题也进行切词，并过滤掉其中的停用词，结果以空格分隔
-//        List<Integer> question = WordUtils.getWordCutList(sentence, "").stream()
-//                .filter(wordCut -> !stopWordList.contains(wordCut))
-//                .map(wordCut -> dictMap.get(wordCut) == null ? 0 : dictMap.get(wordCut))
-//                .collect(Collectors.toList());
-//
-//        // 获取问题切词长度，并补足或截断长度
-//        int questionLen = question.size();
-//        question = fillLength(maxLength, question, questionLen);
-//
-//        // 返回{question:[], question_len:[], answer:[], answer_len:[]}
-//        Map<String, Object> map = new HashMap<>();
-//        map.put("question", question);
-//        map.put("question_len", Arrays.asList(questionLen));
-//        map.put("answer", answer);
-//        map.put("answer_len", Arrays.asList(answerLen));
-//        try {
-//            return objectMapper.writeValueAsString(map);
-//        } catch (JsonProcessingException e) {
-//            log.error("e = {}", e);
-//            throw new AlgorithmException(ResultEnum.JSON_ERROR);
-//        }
-//    }
-//
-//    private List<Integer> fillLength(int maxLength, List<Integer> answer, int answerLen) {
-//        if (answerLen < maxLength) {
-//            // 不足最大长度就补零
-//            for (int i = answerLen; i < maxLength; i++) {
-//                answer.add(0);
-//            }
-//        } else if (answerLen > maxLength) {
-//            // 大于最大长度就截断
-//            answer = answer.subList(0, maxLength);
-//        }
-//        return answer;
-//    }
 
     /**
      * 通过Java获取tensorflow的参数向量
@@ -694,6 +617,7 @@ public class ModelController {
 
     /**
      * 获取元数据
+     *
      * @param port
      * @param fullName
      * @return
@@ -799,6 +723,7 @@ public class ModelController {
 
     /**
      * 去掉空格，将"转化为\"
+     *
      * @param ps
      * @return
      */
@@ -1565,16 +1490,16 @@ public class ModelController {
                 predictVO.setSentence(sentence);
 
                 // 从所有相同名称的模型中，找出版本号最大的tensorflow模型，如果没有tensorflow模型那就找版本号最大的mleap模型
-                List<AiModelBO> aiModelEntityList = aiModelRepository.findByShortName(shortName);
-                AiModelBO wanted = null;
-                for (AiModelBO aiModelEntity : aiModelEntityList) {
+                List<AiModelVO> aiModelVOList = aiModelService.findByShortName(shortName);
+                AiModelVO wanted = null;
+                for (AiModelVO aiModelVO : aiModelVOList) {
                     if (wanted == null) {
-                        wanted = aiModelEntity;
+                        wanted = aiModelVO;
                     } else if (wanted.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_MLEAP) &&
-                            aiModelEntity.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
-                        wanted = aiModelEntity;
-                    } else if (aiModelEntity.getVersion() > wanted.getVersion()) {
-                        wanted = aiModelEntity;
+                            aiModelVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_TENSORFLOW)) {
+                        wanted = aiModelVO;
+                    } else if (aiModelVO.getVersion() > wanted.getVersion()) {
+                        wanted = aiModelVO;
                     }
                 }
                 predictVO.setType(wanted.getType());

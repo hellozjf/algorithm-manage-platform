@@ -12,8 +12,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Data
-@ApiModel(description = "订单查询请求数据")
-public class AiModelVO {
+@ApiModel(description = "AiModelVO")
+public class AiModelVO extends BaseVO {
 
     /**
      * 模型的编号

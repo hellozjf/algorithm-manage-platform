@@ -5,7 +5,6 @@ import cn.hutool.core.util.RuntimeUtil;
 import cn.hutool.crypto.digest.Digester;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zrar.ai.annotation.Log;
-import com.zrar.ai.bo.LogBO;
 import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.config.CustomWorkdirConfig;
 import com.zrar.ai.constant.DictItem;
@@ -21,9 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -70,10 +67,7 @@ public class WebController {
     private Digester md5Digester;
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private WebService webService;
+    private AiModelService aiModelService;
 
     @Autowired
     private LogService logService;
@@ -86,7 +80,7 @@ public class WebController {
     @Log("获取所有模型")
     @GetMapping("/getAllModels")
     public ResultVO getAllModels(Pageable pageable) {
-        Page<AiModelVO> aiModelEntityPage = webService.getAllModels(pageable);
+        Page<AiModelVO> aiModelEntityPage = aiModelService.getAllModels(pageable);
         return ResultUtils.success(aiModelEntityPage);
     }
 
@@ -114,7 +108,7 @@ public class WebController {
     @GetMapping("/reboot")
     public ResultVO reboot() {
         // 重新创建目前已经存在的所有容器
-        List<AiModelVO> aiModelVOList = webService.getAllModels();
+        List<AiModelVO> aiModelVOList = aiModelService.getAllModels();
         for (AiModelVO aiModelVO : aiModelVOList) {
             FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
             try {
@@ -138,7 +132,7 @@ public class WebController {
     @Log("重启单个容器")
     @GetMapping("/restartModel")
     public ResultVO restartModel(@RequestParam("id") String id) {
-        AiModelVO aiModelVO = webService.findById(id);
+        AiModelVO aiModelVO = aiModelService.findById(id);
         FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
         try {
             dockerService.restartDocker(fullNameVO.getFullName());
@@ -208,7 +202,7 @@ public class WebController {
                                @RequestParam("file") MultipartFile multipartFile) {
 
         // 首先去数据库中找到这个模型文件
-        AiModelVO aiModelVO = webService.findById(id);
+        AiModelVO aiModelVO = aiModelService.findById(id);
         FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
 
         // 判断上传过来的文件是不是空的
@@ -227,7 +221,7 @@ public class WebController {
         // 将上传上来的文件保存到 工作主机的模型目录下
         saveFile(multipartFile, file, fullNameVO);
         // 更新文件md5
-        aiModelVO = webService.updateMd5(aiModelVO, md5Digester.digestHex(file));
+        aiModelVO = aiModelService.updateMd5(aiModelVO, md5Digester.digestHex(file));
 
         return ResultUtils.success(aiModelVO);
     }
@@ -241,7 +235,7 @@ public class WebController {
     @Log("启动模型")
     @GetMapping("/startModel")
     public ResultVO startModel(@RequestParam("id") String id) {
-        AiModelVO aiModelVO = webService.findById(id);
+        AiModelVO aiModelVO = aiModelService.findById(id);
         FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
         try {
             dockerService.startDocker(fullNameVO.getFullName());
@@ -261,7 +255,7 @@ public class WebController {
     @Log("关闭模型")
     @GetMapping("/stopModel")
     public ResultVO stopModel(@RequestParam("id") String id) {
-        AiModelVO aiModelVO = webService.findById(id);
+        AiModelVO aiModelVO = aiModelService.findById(id);
         FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
         try {
             dockerService.stopDocker(fullNameVO.getFullName());
@@ -290,17 +284,17 @@ public class WebController {
         boolean bRenewVersion = aiModelVO.getNewVersion().booleanValue();
 
         // 获取新的aiModelEntity
-        AiModelVO newAiModelVO = webService.getAiModelVO(aiModelVO, shortName, type, version, bRenewVersion);
+        AiModelVO newAiModelVO = aiModelService.getAiModelVO(aiModelVO, shortName, type, version, bRenewVersion);
         FullNameVO fullNameVO = fullNameService.getByAiModel(newAiModelVO);
 
         // 组合类型的记录，只添加数据库记录
         if (aiModelVO.getType().equalsIgnoreCase(DictItem.MODEL_TYPE_COMPOSE)) {
-            newAiModelVO = webService.save(newAiModelVO);
+            newAiModelVO = aiModelService.save(newAiModelVO);
             return ResultUtils.success(newAiModelVO);
         }
 
         // 把记录写到数据库中
-        newAiModelVO = webService.save(newAiModelVO);
+        newAiModelVO = aiModelService.save(newAiModelVO);
 
         // 首先创建模型对应的docker容器
         try {
@@ -326,7 +320,7 @@ public class WebController {
     public ResultVO delModel(@RequestParam String ids) {
         String[] idArray = ids.split(",");
         for (String id : idArray) {
-            AiModelVO aiModelVO = webService.findById(id);
+            AiModelVO aiModelVO = aiModelService.findById(id);
             FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
             try {
                 dockerService.deleteDocker(fullNameVO.getFullName());
@@ -334,7 +328,7 @@ public class WebController {
                 log.error("e = ", e);
                 throw new AlgorithmException(ResultEnum.DELETE_DOCKER_ERROR);
             }
-            webService.delete(aiModelVO);
+            aiModelService.delete(aiModelVO);
             // 把模型文件也一起删了
             File file = new File(fileService.getModelWorkFilePath(fullNameVO.getFullName()));
             file.delete();
@@ -351,7 +345,7 @@ public class WebController {
     public ResponseEntity<byte[]> downloadFile(@RequestParam("id") String id) {
 
         // 将模型文件读取到byte数组中
-        AiModelVO aiModelVO = webService.findById(id);
+        AiModelVO aiModelVO = aiModelService.findById(id);
         FullNameVO fullNameVO = fullNameService.getByAiModel(aiModelVO);
         String modelFilePath = fileService.getModelOutterFilePath(fullNameVO.getFullName());
         File file = new File(modelFilePath);
@@ -388,8 +382,8 @@ public class WebController {
         boolean bNewVersion = aiModelVO.getNewVersion().booleanValue();
 
         // 获取数据库中的实体，并更新它
-        AiModelVO newAiModelVO = webService.getAiModelVO(aiModelVO, shortName, type, version, bNewVersion);
-        newAiModelVO = webService.save(newAiModelVO);
+        AiModelVO newAiModelVO = aiModelService.getAiModelVO(aiModelVO, shortName, type, version, bNewVersion);
+        newAiModelVO = aiModelService.save(newAiModelVO);
 
         if (bNewVersion) {
             // 如果有新版本，需要拷贝模型文件
@@ -407,10 +401,10 @@ public class WebController {
     private AiModelVO getModelEntityByIdOrFullName(String id, String fullName) {
         AiModelVO aiModelVO;
         if (!StringUtils.isEmpty(id)) {
-            aiModelVO = webService.findById(id);
+            aiModelVO = aiModelService.findById(id);
         } else if (!StringUtils.isEmpty(fullName)) {
             FullNameVO fullNameVO = fullNameService.getByFullName(fullName);
-            aiModelVO = webService.findByTypeAndShortNameAndVersion(fullNameVO.getType(), fullNameVO.getShortName(), fullNameVO.getVersion());
+            aiModelVO = aiModelService.findByTypeAndShortNameAndVersion(fullNameVO.getType(), fullNameVO.getShortName(), fullNameVO.getVersion());
         } else {
             throw new AlgorithmException(ResultEnum.CAN_NOT_FIND_MODEL_ERROR);
         }
