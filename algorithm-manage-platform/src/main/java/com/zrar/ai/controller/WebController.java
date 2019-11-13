@@ -4,6 +4,8 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RuntimeUtil;
 import cn.hutool.crypto.digest.Digester;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zrar.ai.annotation.Log;
+import com.zrar.ai.bo.LogBO;
 import com.zrar.ai.config.CustomDockerConfig;
 import com.zrar.ai.config.CustomWorkdirConfig;
 import com.zrar.ai.constant.DictItem;
@@ -13,12 +15,15 @@ import com.zrar.ai.service.*;
 import com.zrar.ai.util.ResultUtils;
 import com.zrar.ai.vo.AiModelVO;
 import com.zrar.ai.vo.FullNameVO;
+import com.zrar.ai.vo.LogVO;
 import com.zrar.ai.vo.ResultVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -70,11 +75,15 @@ public class WebController {
     @Autowired
     private WebService webService;
 
+    @Autowired
+    private LogService logService;
+
     /**
      * 获取所有的模型
      *
      * @return
      */
+    @Log("获取所有模型")
     @GetMapping("/getAllModels")
     public ResultVO getAllModels(Pageable pageable) {
         Page<AiModelVO> aiModelEntityPage = webService.getAllModels(pageable);
@@ -88,6 +97,7 @@ public class WebController {
      * @param fullName
      * @return
      */
+    @Log("打开编辑窗口，需要获取详情")
     @GetMapping("/getModel")
     public ResultVO getModel(@RequestParam(name = "id", required = false) String id,
                              @RequestParam(name = "fullName", required = false) String fullName) {
@@ -100,6 +110,7 @@ public class WebController {
      *
      * @return
      */
+    @Log("一键重启功能")
     @GetMapping("/reboot")
     public ResultVO reboot() {
         // 重新创建目前已经存在的所有容器
@@ -124,6 +135,7 @@ public class WebController {
      * @param id
      * @return
      */
+    @Log("重启单个容器")
     @GetMapping("/restartModel")
     public ResultVO restartModel(@RequestParam("id") String id) {
         AiModelVO aiModelVO = webService.findById(id);
@@ -141,6 +153,7 @@ public class WebController {
      *
      * @return
      */
+    @Log("判断docker服务是否已经正常启动")
     @GetMapping("/isStarted")
     public ResultVO isStarted() {
         return ResultUtils.success(dockerService.isStarted());
@@ -189,6 +202,7 @@ public class WebController {
      * @param multipartFile
      * @return
      */
+    @Log("上传模型")
     @PostMapping("/uploadFile")
     public ResultVO uploadFile(@RequestParam("id") String id,
                                @RequestParam("file") MultipartFile multipartFile) {
@@ -224,6 +238,7 @@ public class WebController {
      * @param id
      * @return
      */
+    @Log("启动模型")
     @GetMapping("/startModel")
     public ResultVO startModel(@RequestParam("id") String id) {
         AiModelVO aiModelVO = webService.findById(id);
@@ -243,6 +258,7 @@ public class WebController {
      * @param id
      * @return
      */
+    @Log("关闭模型")
     @GetMapping("/stopModel")
     public ResultVO stopModel(@RequestParam("id") String id) {
         AiModelVO aiModelVO = webService.findById(id);
@@ -262,6 +278,7 @@ public class WebController {
      * @param aiModelVO
      * @return
      */
+    @Log("添加模型")
     @Transactional(rollbackFor = Exception.class)
     @PostMapping("/addModel")
     public ResultVO addModel(@RequestBody AiModelVO aiModelVO) {
@@ -303,6 +320,7 @@ public class WebController {
      * @param ids 逗号隔开的id字符串
      * @return
      */
+    @Log("根据id删除模型")
     @Transactional(rollbackFor = Exception.class)
     @PostMapping("/delModel")
     public ResultVO delModel(@RequestParam String ids) {
@@ -328,7 +346,7 @@ public class WebController {
         }
         return ResultUtils.success();
     }
-
+    @Log("下载文件")
     @GetMapping("/downloadFile")
     public ResponseEntity<byte[]> downloadFile(@RequestParam("id") String id) {
 
@@ -358,6 +376,7 @@ public class WebController {
      *
      * @return
      */
+    @Log("根据id修改模型")
     @Transactional(rollbackFor = Exception.class)
     @PostMapping("/modifyModel")
     public ResultVO modifyModel(@RequestBody AiModelVO aiModelVO) {
@@ -403,6 +422,7 @@ public class WebController {
      *
      * @return
      */
+    @Log("获取所有模型类型")
     @GetMapping("/getAllModelType")
     public ResultVO getAllModelType() {
         List<Map<Integer, String>> mapList = new ArrayList<>();
@@ -412,5 +432,10 @@ public class WebController {
 //            mapList.add(map);
 //        }
         return ResultUtils.success(mapList);
+    }
+    @Log("获取日志")
+    @GetMapping("/getLog")
+    public  Page<LogVO> findAllLog(Pageable pageable){
+        return logService.getPage(null, pageable);
     }
 }

@@ -1,20 +1,14 @@
-package com.zrar.ai.bo;
+package com.zrar.ai.vo;
 
 import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 
-import javax.persistence.Entity;
-import javax.persistence.Table;
 import java.util.Date;
 
 /**
- * @author Jingfeng Zhou
+ * @author: chenzhangyi
  */
-@Slf4j
 @Data
-@Entity
-@Table(name = "log")
-public class LogBO extends BaseBO {
+public class LogVO extends BaseVO {
 
     /**
      * 日志文本
