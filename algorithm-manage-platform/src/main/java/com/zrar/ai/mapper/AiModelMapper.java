@@ -19,6 +19,7 @@ import java.io.IOException;
 
 /**
  * VO与BO互相转换工具类
+ * 参考链接：https://stackoverflow.com/questions/48492207/how-can-i-convert-string-to-map-using-mapstruct/48510197#48510197
  * @author hellozjf
  * @date 2019-11-08
  */
