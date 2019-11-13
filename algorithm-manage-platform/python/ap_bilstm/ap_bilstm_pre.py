@@ -75,6 +75,8 @@ def main(argv):
     print(jsonString)
 
 
+# 用法
+# python ap_bilstm_pre.py 增值税的税率是多少 stopWord.txt total_vocabulary.txt
 if __name__ == "__main__":
     main(sys.argv)
 

@@ -1,5 +1,6 @@
 package com.zrar.ai.controller;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RuntimeUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,6 +37,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -165,7 +167,6 @@ public class ModelController {
             try {
                 beforeDoPredict = System.currentTimeMillis();
                 ps = doMLeapPredict(aiModelEntity.getPort(), params);
-//                ps = doPredict(params, "/mleap/" + shortName + "/transform");
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
                 log.error("e = {}", e);
@@ -183,7 +184,6 @@ public class ModelController {
             try {
                 beforeGetParams = System.currentTimeMillis();
                 params = getTensorflowParams(predictVO.getSentence(), modelParamVO);
-//                params = getParams(predictVO.getSentence(), aiModelEntity.getType(), modelParamVO);
                 afterGetParams = System.currentTimeMillis();
             } catch (Exception e) {
                 ResultUtils.error(ResultEnum.GET_PARAMS_ERROR);
@@ -196,7 +196,6 @@ public class ModelController {
             String ps = null;
             try {
                 beforeDoPredict = System.currentTimeMillis();
-//                ps = doPredict(params, "/tensorflow/" + shortName + "/v1/models/" + shortName + ":predict");
                 ps = doTensorflowPredict(aiModelEntity.getPort(), fullNameVO.getFullName(), params);
                 afterDoPredict = System.currentTimeMillis();
             } catch (Exception e) {
@@ -473,7 +472,50 @@ public class ModelController {
      * @return
      */
     public String getRawTensorflowParams(String sentence, ModelParamVO modelParamVO) {
-        return getRawJavaTensorflowParams(sentence, modelParamVO);
+        if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_AP_BILSTM)) {
+            // ap_bilstm无法与其它模型通过相同的处理方式得到结果
+            List<String> lines = RuntimeUtil.execForLines("python",
+                    "python/ap_bilstm/ap_bilstm_pre.py",
+                    sentence,
+                    "python/ap_bilstm/stopWord.txt",
+                    "python/ap_bilstm/total_vocabulary.txt");
+            return lines.get(lines.size() - 1);
+        } else if (modelParamVO.getModelName().equalsIgnoreCase(DictItem.MODEL_NAME_RERANKING)) {
+            // reranking无法与其它模型通过相同的处理方式得到结果
+            // todo 这里的cadidate.p需要动态传入
+            List<String> lines = RuntimeUtil.execForLines("python",
+                    "python/reranking/reranking_pre.py",
+                    "python/tmp/candidate.p");
+            String result = lines.get(lines.size() - 1);
+
+            // 这里的参数要处理一下，不能直接使用
+            try {
+                JsonNode jsonNode = objectMapper.readTree(result);
+                ArrayNode answer_ = (ArrayNode) jsonNode.get("answer_");
+                ArrayNode probability = (ArrayNode) jsonNode.get("probability");
+                ArrayNode question_ = (ArrayNode) jsonNode.get("question_");
+
+                StringBuilder stringBuilder = new StringBuilder();
+
+                int size = answer_.size();
+                for (int i = 0; i < size; i++) {
+                    stringBuilder.append("{");
+                    stringBuilder.append("\"answer\":");
+                    stringBuilder.append(objectMapper.writeValueAsString(answer_.get(i)));
+                    stringBuilder.append(",\"question\":");
+                    stringBuilder.append(objectMapper.writeValueAsString(question_.get(i)));
+                    stringBuilder.append(",\"probability\":[");
+                    stringBuilder.append(probability.get(i).asText());
+                    stringBuilder.append("]},");
+                }
+                return stringBuilder.substring(0, stringBuilder.length() - 1);
+            } catch (IOException e) {
+                log.error("e = ", e);
+                throw new AlgorithmException(ResultEnum.JSON_ERROR);
+            }
+        } else {
+            return getRawJavaTensorflowParams(sentence, modelParamVO);
+        }
 
         // TODO 每增加一个模型，需要添加一段代码逻辑
 //        if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
@@ -756,6 +798,15 @@ public class ModelController {
     }
 
     /**
+     * 去掉空格，将"转化为\"
+     * @param ps
+     * @return
+     */
+    private String changePS(String ps) {
+        return ps.replaceAll("\\s", "").replaceAll("\"", "\\\\\"");
+    }
+
+    /**
      * 获取返回的AP_BILSTM模型预测结果VO
      *
      * @param ps              喂给tensorflow模型后预测的结果
@@ -770,8 +821,14 @@ public class ModelController {
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
         // 这次调用主要是在tensorflow-param中生成一个文件
-        // todo 这里不知道怎么改
-//        getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode(), ps, 120);
+        // todo 这里的candidate.csv和candidate.p要写活
+        String result = RuntimeUtil.execForStr("python",
+                "python/ap_bilstm/ap_bilstm_post.py",
+                changePS(ps),
+                "python/ap_bilstm/total_answer_dict.p",
+                "python/tmp/candidate.csv",
+                "python/tmp/candidate.p");
+        log.debug("result = {}", result);
         long afterPost = System.currentTimeMillis();
 
         // 预测结果无返回
@@ -883,8 +940,10 @@ public class ModelController {
         // 首先拿着ps去查询
         long beforePost = System.currentTimeMillis();
         // 这次调用主要是在tensorflow-param中生成一个文件
-        // todo 这里不知道怎么改
-//        String result = getRawPythonTensorflowParams(sentence, ModelParamEnum.TENSORFLOW_RERANKING.getCode(), ps, 120);
+        String result = RuntimeUtil.execForStr("python",
+                "python/reranking/reranking_post.py",
+                changePS(ps),
+                "python/tmp/candidate.csv");
         long afterPost = System.currentTimeMillis();
 
         // 预测结果类似
@@ -898,15 +957,14 @@ public class ModelController {
         //    ]
         // ]
         ArrayNode arrayNode = null;
-//        try {
-        // todo 这里不知道怎么改
-//            ArrayNode a1 = (ArrayNode) objectMapper.readTree(result);
-//            if (a1 != null && a1.size() == 1) {
-//                arrayNode = (ArrayNode) a1.get(0);
-//            }
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
+        try {
+            ArrayNode a1 = (ArrayNode) objectMapper.readTree(result);
+            if (a1 != null && a1.size() == 1) {
+                arrayNode = (ArrayNode) a1.get(0);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         JsonNode paramsNode = null;
         try {
