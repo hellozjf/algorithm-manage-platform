@@ -480,7 +480,8 @@ public class ModelController {
         Map<String, Object> result = new HashMap<>();
         result.put("input_ids", inputIds);
         result.put("input_mask", inputMask);
-        if (paramCode != ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
+        if (paramCode != ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode() &&
+            paramCode != ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
             result.put("label_ids", 0);
         }
         result.put("segment_ids", segmentIds);
@@ -621,9 +622,10 @@ public class ModelController {
     public String getRawTensorflowParams(String sentence, int paramCode) {
         // TODO 每增加一个模型，需要添加一段代码逻辑
         if (paramCode == ModelParamEnum.TENSORFLOW_DIRTY_WORD.getCode() ||
-                paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode() ||
-                paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+                paramCode == ModelParamEnum.TENSORFLOW_IS_TAX_ISSUE.getCode()) {
             return getRawJavaTensorflowParams(sentence, paramCode, 128);
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            return getRawJavaTensorflowParams(sentence, paramCode, 50);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_AP_BILSTM.getCode()) {
             // 问答模型处理很复杂，需要先通过预处理获取到参数，再用参数拿到中间结果，最后还要将中间结果经过后处理加工成最终结果
             return getRawPythonTensorflowParams(sentence, paramCode, "", 120);
