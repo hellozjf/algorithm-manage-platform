@@ -6,10 +6,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import javax.persistence.EntityListeners;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.MappedSuperclass;
+import javax.persistence.*;
 import java.io.Serializable;
 import java.util.Date;
 
@@ -41,11 +38,13 @@ public abstract class BaseBO implements Serializable {
      * 创建时间
      */
     @CreatedDate
+    @Temporal(TemporalType.DATE)
     private Date gmtCreate;
 
     /**
      * 更新时间
      */
     @LastModifiedDate
+    @Temporal(TemporalType.DATE)
     private Date gmtModified;
 }
