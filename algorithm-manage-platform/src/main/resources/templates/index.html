@@ -432,31 +432,31 @@
           $('#testPredictString').textbox('setValue', json.data.predictString);
           $('#testProbability').textbox('setValue', json.data.probability);
 
-          if (json.data.rawQuestion) {
+          if (json.data.rawQuestion != undefined && json.data.rawQuestion != null) {
             $('#testRawQuestion').textbox('setValue', json.data.rawQuestion);
             $('#trRawQuestion').show();
           } else {
             $('#trRawQuestion').hide();
           }
-          if (json.data.predict) {
+          if (json.data.predict != undefined && json.data.predict != null) {
             $('#testPredict').textbox('setValue', json.data.predict);
             $('#trPredict').show();
           } else {
             $('#trPredict').hide();
           }
-          if (json.data.predictId) {
+          if (json.data.predictId != undefined && json.data.predictId != null) {
             $('#testPredictId').textbox('setValue', json.data.predictId);
             $('#trPredictId').show();
           } else {
             $('#trPredictId').hide();
           }
-          if (json.data.predictNodeCode) {
+          if (json.data.predictNodeCode != undefined && json.data.predictNodeCode != null) {
             $('#testPredictNodeCode').textbox('setValue', json.data.predictNodeCode);
             $('#trPredictNodeCode').show();
           } else {
             $('#trPredictNodeCode').hide();
           }
-          if (json.data.predictList) {
+          if (json.data.predictList != undefined && json.data.predictList != null) {
             var len = json.data.predictList.length > 5 ? 5 : json.data.predictList.length;
 
             // 要先将datagrid显示出来，再加数据才能看到数据
