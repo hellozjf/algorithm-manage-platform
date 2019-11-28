@@ -212,11 +212,13 @@ public class ModelController {
                         afterDoPredict - beforeDoPredict));
             } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
                 // 智能咨询-场景分类模型
+                // 建议使用20191011
                 return ResultUtils.success(getTensorflowZnzxParams(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
             } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode()) {
                 // 是否是bert_match模型的结果
+                // 智能咨询前置模型20191024
                 return ResultUtils.success(getRemoteBertMatchPredictResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
                         afterDoPredict - beforeDoPredict));
