@@ -282,29 +282,47 @@ public class ModelController {
             throw new AlgorithmException(ResultEnum.JSON_ERROR);
         }
 
-        JsonNode predictions = jsonNode.get("predictions");
-        ArrayNode arrayNode = (ArrayNode) predictions;
-        arrayNode = (ArrayNode) arrayNode.get(0);
-
-        List<String> list = new ArrayList<>();
-        for (JsonNode node : arrayNode) {
-            list.add(String.valueOf(node.intValue()));
+        // 提取原始文本
+        JsonNode sentenceNode = null;
+        try {
+            sentenceNode = objectMapper.readTree(sentence);
+        } catch (IOException e) {
+            log.error("e =", e);
         }
-        String vec = String.join(",", list);
+        ArrayNode sentenceArrayNode = (ArrayNode) sentenceNode;
 
-        log.debug("vec = {}", vec);
+        // 提取预测结果
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arr = (ArrayNode) predictions;
+        List<Map<String, Object>> mapList = new ArrayList<>();
+        for (int i = 0; i < arr.size(); i++) {
+            ArrayNode arrayNode = (ArrayNode) arr.get(i);
 
-        // r可能是['增值税 税率']
-        String r = RuntimeUtil.execForStr("python",
-                "python/arask-tax-entity/export_result.py",
-                vec,
-                sentence);
-        // 变成 增值税 税率
-        r = r.replaceAll("'", "")
-                .replaceAll("\\[", "")
-                .replaceAll("]", "")
-                .replaceAll("\r", "")
-                .replaceAll("\n", "");
+            List<String> list = new ArrayList<>();
+            for (JsonNode node : arrayNode) {
+                list.add(String.valueOf(node.intValue()));
+            }
+            String vec = String.join(",", list);
+
+            log.debug("vec = {}", vec);
+
+            // r可能是['增值税 税率']
+            String r = RuntimeUtil.execForStr("python",
+                    "python/arask-tax-entity/export_result.py",
+                    vec,
+                    sentenceArrayNode.get(i).asText());
+            // 变成 增值税 税率
+            r = r.replaceAll("'", "")
+                    .replaceAll("\\[", "")
+                    .replaceAll("]", "")
+                    .replaceAll("\r", "")
+                    .replaceAll("\n", "");
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("wb", sentenceArrayNode.get(i).asText());
+            map.put("jg", r);
+            mapList.add(map);
+        }
 
         JsonNode paramsNode = null;
         try {
@@ -315,7 +333,11 @@ public class ModelController {
         PredictResultVO predictResultVO = new PredictResultVO();
         predictResultVO.setSentence(sentence);
         predictResultVO.setParams(paramsNode);
-        predictResultVO.setPredictString(r);
+        try {
+            predictResultVO.setPredictString(objectMapper.writeValueAsString(mapList));
+        } catch (JsonProcessingException e) {
+            log.error("e = ", e);
+        }
         predictResultVO.setPredict(null);
         predictResultVO.setPreCostMs(getParamsCostMs);
         predictResultVO.setPredictCostMs(predictCostMs);
@@ -727,7 +749,19 @@ public class ModelController {
             return getRawPythonTensorflowParams(sentence, paramCode, "", 128);
         } else if (paramCode == ModelParamEnum.TENSORFLOW_TAX_ENTITY.getCode()) {
             // 税务实体挖掘模型长度是90
-            return getRawJavaTensorflowParams(sentence, paramCode, 90);
+            // 这里的sentence实际上是一个字符串数组，用objectMapper进行解析
+            JsonNode jsonNode = null;
+            try {
+                jsonNode = objectMapper.readTree(sentence);
+            } catch (IOException e) {
+                log.error("e = ", e);
+            }
+            ArrayNode arrayNode = (ArrayNode) jsonNode;
+            List<String> paramList = new ArrayList<>();
+            for (int i = 0; i < arrayNode.size(); i++) {
+                paramList.add(getRawJavaTensorflowParams(arrayNode.get(i).asText(), paramCode, 90));
+            }
+            return String.join(",", paramList);
         }
 
         log.error("unknown paramCode = {}", paramCode);
