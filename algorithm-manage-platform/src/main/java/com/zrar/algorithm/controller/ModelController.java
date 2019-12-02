@@ -559,8 +559,8 @@ public class ModelController {
         result.put("input_ids", inputIds);
         result.put("input_mask", inputMask);
         if (paramCode != ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode() &&
-            paramCode != ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode() &&
-            paramCode != ModelParamEnum.TENSORFLOW_TAX_ENTITY.getCode()) {
+                paramCode != ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode() &&
+                paramCode != ModelParamEnum.TENSORFLOW_TAX_ENTITY.getCode()) {
             result.put("label_ids", 0);
         }
         result.put("segment_ids", segmentIds);
@@ -575,10 +575,10 @@ public class ModelController {
     /**
      * 将句子转成字，然后转换为向量，其中要考虑是否去除标点、去停词、长度
      *
-     * @param sentence              原始句子
-     * @param bRemovePunctuation    是否去除标点
-     * @param bRemoveStopWord       是否去停词
-     * @param maxSeqLength          长度或位数
+     * @param sentence           原始句子
+     * @param bRemovePunctuation 是否去除标点
+     * @param bRemoveStopWord    是否去停词
+     * @param maxSeqLength       长度或位数
      * @return
      */
     private String getRawJavaTensorflowParams(String sentence, boolean bRemovePunctuation, boolean bRemoveStopWord, int maxSeqLength) {
@@ -968,7 +968,6 @@ public class ModelController {
     }
 
 
-
     /**
      * 获取返回的AP_BILSTM模型预测结果VO
      *
@@ -1002,7 +1001,7 @@ public class ModelController {
         try {
             String text = objectMapper.writeValueAsString(arrayNode1);
             rawQuestion = getRawPythonTensorflowParams(text, ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode(), "rawQuestion", 120);
-            if (! StringUtils.isEmpty(rawQuestion)) {
+            if (!StringUtils.isEmpty(rawQuestion)) {
                 rawQuestion = rawQuestion.trim();
             }
             predictString = getRawPythonTensorflowParams(rawQuestion, ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode(), "predictString", 0);
@@ -1071,7 +1070,7 @@ public class ModelController {
                     "python/bert_match/deployment.py",
                     "python/bert_match/stand_em_.pk",
                     text);
-            if (! StringUtils.isEmpty(rawQuestion)) {
+            if (!StringUtils.isEmpty(rawQuestion)) {
                 rawQuestion = rawQuestion.trim();
             }
             predictString = RuntimeUtil.execForStr("python",
