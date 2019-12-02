@@ -225,6 +225,10 @@ public class ModelController {
 //                return ResultUtils.success(getTensorflowBertMatchPredictResultVO(ps, sentence, params,
 //                        afterGetParams - beforeGetParams,
 //                        afterDoPredict - beforeDoPredict));
+            } else if (modelEntity.getParam() == ModelParamEnum.TENSORFLOW_TAX_ENTITY.getCode()) {
+                return ResultUtils.success(getTensorflowTaxEntityResultVO(ps, sentence, params,
+                        afterGetParams - beforeGetParams,
+                        afterDoPredict - beforeDoPredict));
             } else {
                 return ResultUtils.success(getTensorflowResultVO(ps, sentence, params,
                         afterGetParams - beforeGetParams,
@@ -266,6 +270,56 @@ public class ModelController {
         }
 
         return ResultUtils.error(ResultEnum.UNKNOWN_MODEL_TYPE);
+    }
+
+    private Object getTensorflowTaxEntityResultVO(String ps, String sentence, String params, Long getParamsCostMs, Long predictCostMs) {
+        // 先将预测结果转化为JsonNode
+        JsonNode jsonNode = null;
+        try {
+            jsonNode = objectMapper.readTree(ps);
+        } catch (IOException e) {
+            log.error("e = {}", e);
+            throw new AlgorithmException(ResultEnum.JSON_ERROR);
+        }
+
+        JsonNode predictions = jsonNode.get("predictions");
+        ArrayNode arrayNode = (ArrayNode) predictions;
+        arrayNode = (ArrayNode) arrayNode.get(0);
+
+        List<String> list = new ArrayList<>();
+        for (JsonNode node : arrayNode) {
+            list.add(String.valueOf(node.intValue()));
+        }
+        String vec = String.join(",", list);
+
+        log.debug("vec = {}", vec);
+
+        // r可能是['增值税 税率']
+        String r = RuntimeUtil.execForStr("python",
+                "python/arask-tax-entity/export_result.py",
+                vec,
+                sentence);
+        // 变成 增值税 税率
+        r = r.replaceAll("'", "")
+                .replaceAll("\\[", "")
+                .replaceAll("]", "")
+                .replaceAll("\r", "")
+                .replaceAll("\n", "");
+
+        JsonNode paramsNode = null;
+        try {
+            paramsNode = objectMapper.readTree(params);
+        } catch (Exception e) {
+            log.error("e = {}", e);
+        }
+        PredictResultVO predictResultVO = new PredictResultVO();
+        predictResultVO.setSentence(sentence);
+        predictResultVO.setParams(paramsNode);
+        predictResultVO.setPredictString(r);
+        predictResultVO.setPredict(null);
+        predictResultVO.setPreCostMs(getParamsCostMs);
+        predictResultVO.setPredictCostMs(predictCostMs);
+        return predictResultVO;
     }
 
     /**
@@ -483,7 +537,8 @@ public class ModelController {
         result.put("input_ids", inputIds);
         result.put("input_mask", inputMask);
         if (paramCode != ModelParamEnum.TENSORFLOW_BERT_MATCH.getCode() &&
-            paramCode != ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode()) {
+            paramCode != ModelParamEnum.TENSORFLOW_SENTIMENT_ANALYSIS.getCode() &&
+            paramCode != ModelParamEnum.TENSORFLOW_TAX_ENTITY.getCode()) {
             result.put("label_ids", 0);
         }
         result.put("segment_ids", segmentIds);
@@ -670,6 +725,9 @@ public class ModelController {
         } else if (paramCode == ModelParamEnum.TENSORFLOW_ZNZX.getCode()) {
             // 智能咨询模型长度是128
             return getRawPythonTensorflowParams(sentence, paramCode, "", 128);
+        } else if (paramCode == ModelParamEnum.TENSORFLOW_TAX_ENTITY.getCode()) {
+            // 税务实体挖掘模型长度是90
+            return getRawJavaTensorflowParams(sentence, paramCode, 90);
         }
 
         log.error("unknown paramCode = {}", paramCode);
