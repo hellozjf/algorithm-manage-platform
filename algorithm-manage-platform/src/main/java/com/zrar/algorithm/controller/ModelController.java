@@ -320,7 +320,8 @@ public class ModelController {
 
             Map<String, Object> map = new HashMap<>();
             map.put("wb", sentenceArrayNode.get(i).asText());
-            map.put("jg", r);
+            // 去掉None
+            map.put("jg", r.equalsIgnoreCase("None") ? "" : r);
             mapList.add(map);
         }
 
